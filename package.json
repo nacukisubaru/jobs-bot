@@ -1,0 +1,19 @@
+{
+  "scripts": {
+    "auth": "node auth.js",
+    "bot": "tsx ./src/bot/bot.ts",
+    "server": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "multer": "^2.1.1",
+    "node-telegram-bot-api": "^0.67.0",
+    "playwright": "^1.59.1",
+    "unzipper": "^0.12.3"
+  },
+  "devDependencies": {
+    "@types/node-telegram-bot-api": "^0.64.14",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}

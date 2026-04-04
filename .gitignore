@@ -1,0 +1,31 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Playwright
+playwright/.local-browsers/
+
+# Папки с профилями и временные файлы
+hh-profile/
+tmp/
+*.tmp
+*.log
+
+# IDE и системные файлы
+.vscode/
+.DS_Store
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Сборки
+dist/
+build/
+
+# TypeScript
+*.tsbuildinfo
+
+# Environment variables
+.env
