@@ -1,9 +1,10 @@
 export interface Vacancy {
-    link: string;
-    title: string;
-    company?: string;
+  link: string;
+  title: string;
+  company?: string;
+  description: string;
 }
 
 export interface IVacancyFetcher {
-    getVacancies(): Promise<Vacancy[]>;
+  getVacancies(onProgress?: (progress: number) => void): Promise<Vacancy[]>;
 }

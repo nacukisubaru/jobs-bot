@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",              // версия JS, в которую компилируется TS
+    "module": "ESNext",              // система модулей
+    "moduleResolution": "Node",      // разрешение модулей
+    "strict": true,                  // включаем все строгие проверки
+    "esModuleInterop": true,         // для совместимости с CommonJS
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,            // пропуск проверки типов в node_modules
+    "outDir": "./dist",              // куда компилируется JS
+    "rootDir": "./src"               // корневая папка с TS
+  },
+  "include": ["src/**/*"],           // файлы проекта
+  "exclude": ["node_modules", "dist"]
+}

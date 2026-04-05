@@ -1,0 +1,60 @@
+import { Readable } from 'stream';
+import { startCommand, stopCommand } from './commands/start-command';
+import { VacancyService } from '../services/vacancy/vacancy.service';
+
+import { BrowserService } from '../services/browser/browser.service';
+import { bot } from './bot';
+import { GPTService } from '../services/chatgpt/chatgpt.service';
+
+bot.onText(/\/start/, (msg) => {
+  startCommand(msg);
+});
+
+bot.onText(/\/stop/, (msg) => {
+  stopCommand(msg);
+});
+
+bot.onText(/\/get-jobs/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  const browserService = new BrowserService('./hh-profile');
+
+  await browserService.start();
+
+  const context = browserService.getContext();
+
+  const vacancyService = new VacancyService(context);
+
+  const gptService = new GPTService();
+
+  try {
+    const vacancies = await vacancyService.getVacancies((progress) => {
+      bot.sendMessage(chatId, `Загружаем вакансии ${progress}%`);
+    });
+
+    if (!vacancies.length) {
+      return await bot.sendMessage(chatId, 'Вакансий не найдено.');
+    }
+
+    const analyzedVacancies = await gptService.analyzeVacancies(vacancies);
+
+    // Формируем текст
+    const text = analyzedVacancies.map((v) => `${v.title} - ${v.link}`).join('\n');
+    // console.log({text});
+
+    // Превращаем в буфер
+    const buffer = Buffer.from(text, 'utf-8');
+    const stream = Readable.from(buffer);
+
+    bot.sendMessage(chatId, `Найдено ${analyzedVacancies.length} вакансий`);
+
+    await bot.sendDocument(chatId, stream, {}, { filename: 'vacancies.txt' });
+  } catch (err) {
+    console.error(err);
+    bot.sendMessage(chatId, 'Ошибка при получении вакансий.');
+  } finally {
+    browserService.stop();
+  }
+
+  return undefined;
+});

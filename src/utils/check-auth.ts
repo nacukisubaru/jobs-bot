@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { chromium } from 'playwright';
 
 export default async function checkAuth(profilePath: string) {
   try {
@@ -6,8 +6,8 @@ export default async function checkAuth(profilePath: string) {
       profilePath,
       {
         headless: false,
-        channel: "chrome",
-      }
+        channel: 'chrome',
+      },
     );
 
     const cookies = await context.cookies();
@@ -18,7 +18,7 @@ export default async function checkAuth(profilePath: string) {
 
     return isAuth;
   } catch (err) {
-    console.log(err)
+    console.log(err);
     return false;
   }
 }
