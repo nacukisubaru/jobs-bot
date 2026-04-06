@@ -9,6 +9,7 @@ import { bot } from '../bot';
 
 import checkAuth from '../../utils/check-auth';
 import { BrowserService } from '../../services/browser/browser.service';
+import { ResumeService } from '../../services/resume/resume.service';
 
 const PROFILE_PATH = './hh-profile';
 
@@ -42,9 +43,12 @@ async function startAutoReplies(chatId: number): Promise<void> {
       context,
       new VacancyService(context),
       new GPTService(),
+      new ResumeService(context),
     );
 
-    await jobService.run();
+    await jobService.run((progress: any) => {
+      bot.sendMessage(chatId, `Загружаем вакансии ${progress}%`);
+    });
   } catch (err) {
     console.error('Ошибка при запуске автоклика:', err);
 

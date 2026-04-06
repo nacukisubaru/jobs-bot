@@ -25,7 +25,7 @@ bot.onText(/\/get-jobs/, async (msg) => {
 
   const vacancyService = new VacancyService(context);
 
-  const gptService = new GPTService();
+  //const gptService = new GPTService();
 
   try {
     const vacancies = await vacancyService.getVacancies((progress) => {
@@ -36,17 +36,18 @@ bot.onText(/\/get-jobs/, async (msg) => {
       return await bot.sendMessage(chatId, 'Вакансий не найдено.');
     }
 
-    const analyzedVacancies = await gptService.analyzeVacancies(vacancies);
+    // const vacancyApplications = await gptService.generateVacancyApplications(vacancies);
 
     // Формируем текст
-    const text = analyzedVacancies.map((v) => `${v.title} - ${v.link}`).join('\n');
+    // const text = vacancyApplications.map((v) => `${v.title} - ${v.link}`).join('\n');
+    const text = vacancies.map((v) => `${v.title} - ${v.link}`).join('\n');
     // console.log({text});
 
     // Превращаем в буфер
     const buffer = Buffer.from(text, 'utf-8');
     const stream = Readable.from(buffer);
 
-    bot.sendMessage(chatId, `Найдено ${analyzedVacancies.length} вакансий`);
+    // bot.sendMessage(chatId, `Найдено ${vacancyApplications.length} вакансий`);
 
     await bot.sendDocument(chatId, stream, {}, { filename: 'vacancies.txt' });
   } catch (err) {

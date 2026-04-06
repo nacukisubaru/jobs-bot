@@ -1,6 +1,7 @@
+import { Resume } from '../resume/resume.types';
 import { Vacancy } from '../vacancy/vacancy.types';
+import { VacancyApplication } from './chatgpt.service';
 
 export interface IGPTService {
-  generateCoverLetter(vacancy: Vacancy): Promise<string>;
-  analyzeVacancies(vacancies: Vacancy[]): Promise<any>; // дополнительный метод анализа вакансии, опционально
+  generateVacancyApplications(vacancies: Vacancy[], resumes: Resume[]): Promise<VacancyApplication[]>;
 }

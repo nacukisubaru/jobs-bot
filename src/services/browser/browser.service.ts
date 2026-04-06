@@ -18,7 +18,7 @@ export class BrowserService {
 
     try {
       const options: LaunchOptions = {
-        headless: false,
+        headless: true,
         viewport: null,
         executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         userAgent:

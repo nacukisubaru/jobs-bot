@@ -2,15 +2,20 @@ import { BrowserContext, Page } from 'playwright';
 
 import { IGPTService } from '../chatgpt/chatgpt.types';
 import { IVacancyFetcher, Vacancy } from '../vacancy/vacancy.types';
+import { IResumeService } from '../resume/resume.types';
+import { VacancyApplication } from '../chatgpt/chatgpt.service';
 
 export class JobApplicationService {
   constructor(
     private browserContext: BrowserContext,
     private vacancyFetcher: IVacancyFetcher,
     private gptService: IGPTService,
+    private resumeService: IResumeService,
   ) {}
 
-  private async applyToJob(link: string, coverLetter: string): Promise<void> {
+  private async applyToJob(vacancy: VacancyApplication): Promise<void> {
+    const { link, letter, resume } = vacancy;
+
     const page: Page = await this.browserContext.newPage();
 
     try {
@@ -23,6 +28,7 @@ export class JobApplicationService {
 
       if (!responseButton) {
         console.log('Кнопка отклика не найдена');
+
         return;
       }
 
@@ -32,18 +38,30 @@ export class JobApplicationService {
       const addCoverLetter = page.locator('[data-qa="add-cover-letter"]').first();
 
       if (await addCoverLetter.count()) {
-        await addCoverLetter.click(); // больше не ждём visibility после клика
+        await addCoverLetter.click();
+
+        const vacancyLetterInput = page.locator('[data-qa="vacancy-response-popup-form-letter-input"]');
+
+        await vacancyLetterInput.waitFor({ state: 'visible', timeout: 10000 });
+        await vacancyLetterInput.fill(letter);
       }
 
-      console.log({ coverletterbtn: addCoverLetter });
+      const button = await page.locator('#RESPONSE_MODAL_FORM_ID [role="button"]');
 
-      const vacancyLetterInput = await page.waitForSelector(
-        '[data-qa="vacancy-response-popup-form-letter-input"]',
-        { timeout: 5000 },
-      );
+      await button.click();
 
-      console.log({ input: vacancyLetterInput });
-      await vacancyLetterInput.fill(coverLetter);
+      const selectOptionsList = page.locator('[data-qa="magritte-select-option-list"] [role="option"]');
+      const count = await selectOptionsList.count();
+
+      for (let i = 0; i < count; i++) {
+        const option = selectOptionsList.nth(i);
+        const titleElement = option.locator('[data-qa^="resume-title"]');
+        const titleText = await titleElement.textContent();
+
+        if (titleText === resume) {
+          await option.click();
+        }
+      }
 
       // await responseModalButton.click();
 
@@ -55,15 +73,22 @@ export class JobApplicationService {
     }
   }
 
-  public async run(): Promise<void> {
-    const vacancies: Vacancy[] = await this.vacancyFetcher.getVacancies();
+  public async run(cb: () => void): Promise<void> {
+    try {
+      const vacancies: Vacancy[] = await this.vacancyFetcher.getVacancies(cb);
 
-    const analyzedVacancies = await this.gptService.analyzeVacancies(vacancies);
+      const resumes = await this.resumeService.getResumes();
 
-    for (const vacancy of analyzedVacancies) {
-      const coverLetter = await this.gptService.generateCoverLetter(vacancy);
+      const vacancyApplications: VacancyApplication[] = await this.gptService.generateVacancyApplications(
+        vacancies,
+        resumes,
+      );
 
-      await this.applyToJob(vacancy.link, coverLetter);
+      for (const vacancyApplication of vacancyApplications) {
+        await this.applyToJob(vacancyApplication);
+      }
+    } catch (error) {
+      console.error('ERROR_IN_RUN', error);
     }
   }
 }

@@ -1,48 +1,58 @@
 import OpenAI from 'openai';
-import fetch from 'node-fetch';
+
 import { Vacancy } from '../vacancy/vacancy.types';
+import { Resume } from '../resume/resume.types';
+
 import { IGPTService } from './chatgpt.types';
+import { CHATGPT_MAX_VACANCY_PROMPT_TOKENS, CHATGPT_VACANCY_FILTER_PROMPT, CHATGPT_VACANCY_MATCH_AND_COVER_LETTER_PROMPT } from '../../common/constants/chatgpt';
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch });
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-type AnalyzedVacancies = Omit<Vacancy, 'description'>[];
+export type VacancyApplication = Omit<Vacancy, 'description'> & {
+  resume: string,
+  letter: string
+};
 
 export class GPTService implements IGPTService {
   // eslint-disable-next-line class-methods-use-this
-  async generateCoverLetter(vacancy: Vacancy): Promise<string> {
-    // Моковая генерация письма
-    return `Здравствуйте! Я хочу откликнуться на вакансию "${vacancy.title}"${vacancy.company ? ` в ${vacancy.company}` : ''}. Моя сопроводилка готова!`;
-  }
-
-  // eslint-disable-next-line class-methods-use-this
-  async analyzeVacancies(vacancies: Vacancy[]): Promise<AnalyzedVacancies> {
-    const MAX_TOKENS = 4000;
+  async generateVacancyApplications(vacancies: Vacancy[], resumes?: Resume[]): Promise<VacancyApplication[]> {
     const chunks: string[] = [];
-    const currentChunk = '';
 
     const estimateTokens = (text: string) => Math.ceil(text.length / 4);
 
     vacancies.reduce((acc, vac, index) => {
       const vacText = `[${vac.link || 'ссылка не указана'}] Название: ${vac.title} Компания: ${vac.company || 'Не указано'} Описание: ${vac.description}\n`;
 
-      if (estimateTokens(acc + vacText) > MAX_TOKENS || index === vacancies.length - 1) {
-        chunks.push(acc);
+      if (estimateTokens(acc + vacText) > CHATGPT_MAX_VACANCY_PROMPT_TOKENS || index === vacancies.length - 1) {
+        chunks.push(acc || vacText);
 
         return vacText;
       }
 
       return acc + vacText;
-    }, currentChunk);
+    }, '');
 
-    if (currentChunk) chunks.push(currentChunk);
+    let resumeText = '';
 
-    const results: AnalyzedVacancies = [];
+    if (resumes) {
+      resumeText = resumes
+        .map((resume) => `Название: ${resume.title} Описание: ${resume.content}`)
+        .join('\n\n');
+    }
+
+    const vacancyApplications: VacancyApplication[] = [];
+
+    let prompt = CHATGPT_VACANCY_FILTER_PROMPT;
+
+    if (resumeText) {
+      prompt += `${CHATGPT_VACANCY_MATCH_AND_COVER_LETTER_PROMPT} прикладываю свои резюме ${resumeText}`;
+    }
 
     for (const chunk of chunks) {
       const response = await client.chat.completions.create({
         model: 'gpt-4.1-mini',
         messages: [
-          { role: 'system', content: 'Ты должен найти вакансии по реакту и только по реакту это должен быть фронтенд на реакте и ничего больше и вернуть только ссылки этих вакансий в виде массива объектов поля: link, title, company, ссылка которую ты берешь будет в каждой вакансии которую я тебе передаю.' },
+          { role: 'system', content: prompt },
           { role: 'user', content: chunk },
         ],
       });
@@ -52,10 +62,10 @@ export class GPTService implements IGPTService {
       if (content) {
         const parsedContent = JSON.parse(content);
 
-        results.push(...parsedContent);
+        vacancyApplications.push(...parsedContent);
       }
     }
 
-    return results;
+    return vacancyApplications;
   }
 }
