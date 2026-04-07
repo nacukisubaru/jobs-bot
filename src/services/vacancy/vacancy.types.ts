@@ -6,5 +6,5 @@ export interface Vacancy {
 }
 
 export interface IVacancyFetcher {
-  getVacancies(onProgress?: (progress: number) => void): Promise<Vacancy[]>;
+  getVacancies(): Promise<Vacancy[]>;
 }

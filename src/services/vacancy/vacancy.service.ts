@@ -4,7 +4,7 @@ import {
   IVacancyFetcher, Vacancy,
 } from './vacancy.types';
 
-import { HH_URL } from '../../common/constants/common';
+import { HH_URL, PAGE_PARSING_DELAY } from '../../common/constants/common';
 import { sleep } from '../../common/utils/common';
 import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
@@ -17,12 +17,11 @@ export class VacancyService implements IVacancyFetcher {
   constructor(private browserContext: BrowserContext) {
   }
 
-  async getVacancies(onProgress: (progress: number) => void): Promise<Vacancy[]> {
+  async getVacancies(): Promise<Vacancy[]> {
     const allVacancies: Vacancy[] = [];
 
     let pageNumber = 0;
     let hasNextPage = true;
-    let processedVacancies = 0;
     let countVacancies = 0;
 
     while (hasNextPage) {
@@ -65,14 +64,11 @@ export class VacancyService implements IVacancyFetcher {
 
             allVacancies.push(vacancy);
 
-            processedVacancies++;
             countVacancies++;
 
-            onProgress?.(Math.min(100, processedVacancies * 2));
-
-            await sleep(5000);
+            await sleep(PAGE_PARSING_DELAY);
           } catch (error) {
-            logger.error('VACANCY_PARSING_ERROR', error);
+            logger.error(AppErrorName.VACANCY_PARSE_ERROR, error);
 
             continue;
           }
@@ -90,7 +86,9 @@ export class VacancyService implements IVacancyFetcher {
         hasNextPage = !!nextButton;
         pageNumber++;
 
-        await sleep(5000);
+        await sleep(PAGE_PARSING_DELAY);
+      } catch (error) {
+        logger.error(AppErrorName.VACANCY_PARSE_ERROR, error);
       } finally {
         await page.close();
       }

@@ -7,70 +7,73 @@ import { GPTService } from '../../services/chatgpt/chatgpt.service';
 
 import { bot } from '../bot';
 
-import checkAuth from '../../utils/check-auth';
 import { BrowserService } from '../../services/browser/browser.service';
 import { ResumeService } from '../../services/resume/resume.service';
+import { AsyncScheduler } from '../../services/scheduler/scheduler.service';
 
-const PROFILE_PATH = './hh-profile';
+import { logger } from '../../common/logger';
+import { BotMessageName } from '../../common/constants/bot';
+import { AppErrorName } from '../../common/constants/errors';
+import {
+  AUTO_REPLIES_DELAY, AUTO_REPLIES_RETRY_DELAY, MAX_RETRY_JOB_APPLICATION_RUN_COUNT, PROFILE_PATH,
+} from '../../common/constants/common';
 
-let interval: NodeJS.Timeout | null = null;
+let autoRepliesScheduler: AsyncScheduler;
 
 const browser = new BrowserService(PROFILE_PATH);
 
 async function startAutoReplies(chatId: number): Promise<void> {
-  if (interval) clearInterval(interval);
-
-  bot.sendMessage(chatId, '🚀 Запускаю автоотклики');
-
-  const isValid = await checkAuth(PROFILE_PATH);
-
-  if (!isValid) {
-    clearInterval(interval!);
-
-    interval = null;
-
-    bot.sendMessage(chatId, '⚠️ Авторизация истекла. Загрузите профиль заново');
-
-    return;
-  }
-
-  await browser.start();
-
-  const context: BrowserContext = browser.getContext();
-
   try {
-    const jobService = new JobApplicationService(
-      context,
-      new VacancyService(context),
-      new GPTService(),
-      new ResumeService(context),
+    autoRepliesScheduler = new AsyncScheduler(
+      async () => {
+        const context: BrowserContext = browser.getContext();
+
+        const jobService = new JobApplicationService(
+          context,
+          new VacancyService(context),
+          new GPTService(),
+          new ResumeService(context),
+        );
+
+        bot.sendMessage(chatId, BotMessageName.AUTO_REPLIES_RUN);
+
+        await jobService.run();
+      },
+      AUTO_REPLIES_DELAY,
+      AUTO_REPLIES_RETRY_DELAY,
+      MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+      {
+        logger: AppErrorName.JOB_APPLICATION_AUTO_APPLY_FAILED,
+        bot: BotMessageName.AUTO_REPLIES_FAILED,
+      },
     );
 
-    await jobService.run((progress: any) => {
-      bot.sendMessage(chatId, `Загружаем вакансии ${progress}%`);
-    });
+    autoRepliesScheduler.start();
   } catch (err) {
-    console.error('Ошибка при запуске автоклика:', err);
+    logger.error(AppErrorName.BOT_AUTO_REPLIES_RUN_ERROR, err);
 
-    bot.sendMessage(chatId, `❌ Ошибка при запуске автоклика: ${err}`);
+    bot.sendMessage(chatId, `${BotMessageName.AUTO_REPLIES_RUN_ERROR} ${err}`);
   }
 }
 
-export function startCommand(msg: TelegramBot.Message): void {
+export async function startCommand(msg: TelegramBot.Message) {
   const chatId = msg.chat.id;
 
-  bot.sendMessage(chatId, 'Проверяю авторизацию...').then(async () => {
-    const isValid = await checkAuth(PROFILE_PATH);
+  await browser.start();
 
-    if (!isValid) {
+  bot.sendMessage(chatId, BotMessageName.CHECKING_AUTORIZE).then(async () => {
+    const isAuth = await browser.isAuth();
+
+    if (!isAuth) {
       bot.sendMessage(
         chatId,
-        `❌ Вы не авторизованы. Загрузите профиль по ссылке ${process.env.UPLOAD_PROFILE_SERVER}`,
+        `${BotMessageName.AUTHORIZATION_ERROR} ${process.env.UPLOAD_PROFILE_SERVER}`,
       );
+
       return;
     }
 
-    bot.sendMessage(chatId, '✅ Авторизация успешна');
+    bot.sendMessage(chatId, BotMessageName.AUTHORIZATION_SUCCESS);
 
     startAutoReplies(chatId);
   });
@@ -79,9 +82,9 @@ export function startCommand(msg: TelegramBot.Message): void {
 export async function stopCommand(msg: TelegramBot.Message) {
   const chatId = msg.chat.id;
 
-  if (interval) clearInterval(interval);
+  autoRepliesScheduler.stop();
 
   await browser.stop();
 
-  bot.sendMessage(chatId, 'Автоотклики остановлены');
+  bot.sendMessage(chatId, BotMessageName.AUTO_REPLIES_IS_STOPPED);
 }
