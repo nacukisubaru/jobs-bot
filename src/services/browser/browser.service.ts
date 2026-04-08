@@ -1,9 +1,11 @@
 import {
   chromium, BrowserContext, LaunchOptions, Page,
 } from 'playwright';
+
+import { bot } from '../../bot/bot';
+
 import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
-import { bot } from '../../bot/bot';
 import { TG_CHAT_ID } from '../../common/constants/common';
 import { BotMessageName } from '../../common/constants/bot';
 
@@ -25,11 +27,8 @@ export class BrowserService {
 
     try {
       const options: LaunchOptions = {
-        headless: false,
-        viewport: null,
+        headless: true,
         executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        userAgent:
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         args: ['--start-maximized', '--disable-blink-features=AutomationControlled'],
       };
 

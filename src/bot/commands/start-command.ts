@@ -82,9 +82,13 @@ export async function startCommand(msg: TelegramBot.Message) {
 export async function stopCommand(msg: TelegramBot.Message) {
   const chatId = msg.chat.id;
 
-  autoRepliesScheduler.stop();
+  if (autoRepliesScheduler.taskIsRunning()) {
+    bot.sendMessage(chatId, BotMessageName.AUTO_REPLIES_IS_RUNNING_WAIT);
+  }
 
-  await browser.stop();
+  autoRepliesScheduler.stop(async () => {
+    await browser.stop();
 
-  bot.sendMessage(chatId, BotMessageName.AUTO_REPLIES_IS_STOPPED);
+    bot.sendMessage(chatId, BotMessageName.AUTO_REPLIES_IS_STOPPED);
+  });
 }

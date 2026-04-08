@@ -8,6 +8,10 @@ export class AsyncScheduler {
 
   private retryCount: number = 0;
 
+  private isRunning: boolean = false;
+
+  private isStopped: boolean = false;
+
   constructor(
     private task: () => Promise<void>,
     private delay: number,
@@ -18,6 +22,8 @@ export class AsyncScheduler {
 
   private async runTask() {
     try {
+      this.isRunning = true;
+
       await this.task();
 
       this.retryCount = 0;
@@ -41,9 +47,13 @@ export class AsyncScheduler {
       }
 
       return;
+    } finally {
+      this.isRunning = false;
     }
 
-    this.scheduleNext(this.delay);
+    if (!this.isStopped) {
+      this.scheduleNext(this.delay);
+    }
   }
 
   private scheduleNext(ms: number) {
@@ -53,12 +63,32 @@ export class AsyncScheduler {
   }
 
   public start() {
+    this.isStopped = false;
+
     this.runTask();
   }
 
-  public stop() {
+  public stop(cb: () => void, delay: number = 60000) {
+    this.isStopped = true;
+
     if (this.timeoutHandle) clearTimeout(this.timeoutHandle);
 
     this.timeoutHandle = null;
+
+    if (!this.isRunning) {
+      cb();
+
+      return;
+    }
+
+    setTimeout(async () => {
+      if (!this.isRunning) {
+        cb();
+      }
+    }, delay);
+  }
+
+  public taskIsRunning() {
+    return this.isRunning;
   }
 }

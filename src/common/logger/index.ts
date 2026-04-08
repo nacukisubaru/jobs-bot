@@ -1,11 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { createLogger, format, transports } from 'winston';
 
 const logDir = process.env.LOG_DIR
   ? path.resolve(process.env.LOG_DIR)
   : path.join(process.cwd(), 'logs');
+
 const logPath = path.join(logDir, 'app.log');
 
 if (!fs.existsSync(logDir)) {

@@ -15,8 +15,6 @@ import {
   PAGE_PARSING_DELAY, TG_CHAT_ID,
 } from '../../common/constants/common';
 import { sleep } from '../../common/utils/common';
-import { AppException } from '../../common/exceptions';
-import { HttpStatus } from '../../common/constants/https-status';
 import { BotMessageName } from '../../common/constants/bot';
 
 export class JobApplicationService {
@@ -48,7 +46,11 @@ export class JobApplicationService {
 
       const addCoverLetter = page.locator('[data-qa="add-cover-letter"]').first();
 
-      await addCoverLetter.waitFor({ state: 'visible' });
+      try {
+        await addCoverLetter.waitFor({ state: 'visible' });
+      } catch {
+        // intentional empty
+      }
 
       const addCoverLetterBtn = await addCoverLetter.count();
 
@@ -64,9 +66,13 @@ export class JobApplicationService {
       await vacancyLetterInput.click({ force: true });
       await vacancyLetterInput.fill(letter);
 
-      const button = await page.locator('#RESPONSE_MODAL_FORM_ID [role="button"]');
+      try {
+        const button = await page.locator('#RESPONSE_MODAL_FORM_ID [role="button"]');
 
-      await button.click();
+        await button.click();
+      } catch {
+        // intentional empty
+      }
 
       const selectOptionsList = page.locator('[data-qa="magritte-select-option-list"] [role="option"]');
       const count = await selectOptionsList.count();
@@ -83,18 +89,9 @@ export class JobApplicationService {
 
       // await responseModalButton.click();
     } catch (err) {
-      console.error({ err });
-      // playwrigth срет ошибками типа такими waiting for locator('[data-qa="add-cover-letter"]').first() to be visible
-      // и ему это в порядке вещей при этом все отрабатывает, если здесь жестко обрывать, то никогда работать не будет
-      // надо подумать над этим, а еще подумать на тем что при
-      // выкидывании ошибок у меня пишет просто originalerror error
-      // а ошибку яне вижу
-      // throw new AppException(
-      //   AppErrorName.JOB_APPLICATION_AUTO_APPLY_TO_JOB_ERROR,
-      //   { cause: err },
-      // );
+      logger.error(AppErrorName.JOB_APPLICATION_AUTO_APPLY_TO_JOB_ERROR, err);
     } finally {
-      await sleep(5000);
+      await sleep(PAGE_PARSING_DELAY);
 
       await page.close();
     }
@@ -147,6 +144,9 @@ export class JobApplicationService {
       await this.applyToJob(vacancyApplication);
     }
 
+    // todo
+    // лезть в монго смотреть там есть ли за сегодня отклики, если нет, а попытки запустится были
+    // то сообщать об этом в тг, что что-то не рабоает, если есть то один раз в день слать сообщение что все окей
     if (vacancyApplications.length) {
       bot.sendMessage(TG_CHAT_ID, BotMessageName.AUTO_REPLIES_SUCCESS_DONE);
     } else {

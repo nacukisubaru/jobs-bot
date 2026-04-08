@@ -13,6 +13,7 @@ export const enum BotMessageName {
   AUTHORIZATION_ERROR = '❌ Вы не авторизованы. Загрузите профиль по ссылке',
   RESUMES_PARSING_ERROR = 'Резюмехи не парсятся!',
   AUTO_REPLIES_IS_STOPPED = 'Автоотклики остановлены!',
+  AUTO_REPLIES_IS_RUNNING_WAIT = 'Автоотклики уже запущены, после выполнения процесс будет остановлен',
   AUTO_REPLIES_FAILED = 'Ошибка автооткликов, повторная попытка через 30 мин',
 
   // warnings
