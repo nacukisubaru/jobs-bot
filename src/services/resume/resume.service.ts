@@ -2,11 +2,13 @@ import { BrowserContext, Page } from 'playwright';
 
 import { IResumeService, Resume } from './resume.types';
 
-import { HH_URL } from '../../common/constants/common';
+import { HH_URL, TG_CHAT_ID } from '../../common/constants/common';
 import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
 import { HttpStatus } from '../../common/constants/https-status';
 import { logger } from '../../common/logger';
+import { bot } from '../../bot/bot';
+import { BotMessageName } from '../../common/constants/bot';
 
 export class ResumeService implements IResumeService {
   constructor(private browserContext: BrowserContext) {}
@@ -55,6 +57,12 @@ export class ResumeService implements IResumeService {
       logger.error(AppErrorName.RESUME_PARSE_ERROR, err);
     } finally {
       await page.close();
+    }
+
+    if (!resumes.length) {
+      logger.warn(new Error(AppErrorName.JOB_APPLICATION_RESUMES_EMPTY_ERROR));
+
+      bot.sendMessage(TG_CHAT_ID, BotMessageName.RESUMES_PARSING_ERROR);
     }
 
     return resumes;

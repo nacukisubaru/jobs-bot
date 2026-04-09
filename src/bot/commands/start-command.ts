@@ -1,65 +1,50 @@
-import type { BrowserContext } from 'playwright';
 import TelegramBot from 'node-telegram-bot-api';
-
-import { JobApplicationService } from '../../services/job-application/job-application.service';
-import { VacancyService } from '../../services/vacancy/vacancy.service';
-import { GPTService } from '../../services/chatgpt/chatgpt.service';
 
 import { bot } from '../bot';
 
 import { BrowserService } from '../../services/browser/browser.service';
-import { ResumeService } from '../../services/resume/resume.service';
-import { AsyncScheduler } from '../../services/scheduler/scheduler.service';
 
-import { logger } from '../../common/logger';
 import { BotMessageName } from '../../common/constants/bot';
-import { AppErrorName } from '../../common/constants/errors';
 import {
-  AUTO_REPLIES_DELAY, AUTO_REPLIES_RETRY_DELAY, MAX_RETRY_JOB_APPLICATION_RUN_COUNT, PROFILE_PATH,
+  PROFILE_PATH,
 } from '../../common/constants/common';
 
-let autoRepliesScheduler: AsyncScheduler;
+import { initAutoRepliesSchedulers } from '../tasks/auto-replies-tasks';
+import { AsyncScheduler } from '../../services/scheduler/scheduler.service';
 
 const browser = new BrowserService(PROFILE_PATH);
 
-async function startAutoReplies(chatId: number): Promise<void> {
-  try {
-    autoRepliesScheduler = new AsyncScheduler(
-      async () => {
-        const context: BrowserContext = browser.getContext();
+let currentAutoRepliesScheduler: AsyncScheduler | null = null;
+let currentApplySavedVacanciesScheduler: AsyncScheduler | null = null;
 
-        const jobService = new JobApplicationService(
-          context,
-          new VacancyService(context),
-          new GPTService(),
-          new ResumeService(context),
-        );
+async function startAutoReplies(): Promise<void> {
+  const { autoRepliesScheduler, applySavedVacanciesScheduler } = initAutoRepliesSchedulers(browser);
 
-        bot.sendMessage(chatId, BotMessageName.AUTO_REPLIES_RUN);
+  currentAutoRepliesScheduler = autoRepliesScheduler;
+  currentApplySavedVacanciesScheduler = applySavedVacanciesScheduler;
 
-        await jobService.run();
-      },
-      AUTO_REPLIES_DELAY,
-      AUTO_REPLIES_RETRY_DELAY,
-      MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
-      {
-        logger: AppErrorName.JOB_APPLICATION_AUTO_APPLY_FAILED,
-        bot: BotMessageName.AUTO_REPLIES_FAILED,
-      },
-    );
+  autoRepliesScheduler.start();
+  applySavedVacanciesScheduler.start();
+}
 
-    autoRepliesScheduler.start();
-  } catch (err) {
-    logger.error(AppErrorName.BOT_AUTO_REPLIES_RUN_ERROR, err);
-
-    bot.sendMessage(chatId, `${BotMessageName.AUTO_REPLIES_RUN_ERROR} ${err}`);
+async function stopAutoReplies(task: AsyncScheduler, chatId: number): Promise<void> {
+  if (task.taskIsRunning()) {
+    bot.sendMessage(chatId, BotMessageName.AUTO_REPLIES_IS_RUNNING_WAIT);
   }
+
+  task.stop(async () => {
+    await browser.stop();
+
+    bot.sendMessage(chatId, BotMessageName.AUTO_REPLIES_IS_STOPPED);
+  });
 }
 
 export async function startCommand(msg: TelegramBot.Message) {
   const chatId = msg.chat.id;
 
-  await browser.start();
+  if (!browser.getContext()) {
+    await browser.start();
+  }
 
   bot.sendMessage(chatId, BotMessageName.CHECKING_AUTORIZE).then(async () => {
     const isAuth = await browser.isAuth();
@@ -75,20 +60,18 @@ export async function startCommand(msg: TelegramBot.Message) {
 
     bot.sendMessage(chatId, BotMessageName.AUTHORIZATION_SUCCESS);
 
-    startAutoReplies(chatId);
+    startAutoReplies();
   });
 }
 
 export async function stopCommand(msg: TelegramBot.Message) {
   const chatId = msg.chat.id;
 
-  if (autoRepliesScheduler.taskIsRunning()) {
-    bot.sendMessage(chatId, BotMessageName.AUTO_REPLIES_IS_RUNNING_WAIT);
+  if (currentApplySavedVacanciesScheduler) {
+    stopAutoReplies(currentApplySavedVacanciesScheduler, chatId);
   }
 
-  autoRepliesScheduler.stop(async () => {
-    await browser.stop();
-
-    bot.sendMessage(chatId, BotMessageName.AUTO_REPLIES_IS_STOPPED);
-  });
+  if (currentAutoRepliesScheduler) {
+    stopAutoReplies(currentAutoRepliesScheduler, chatId);
+  }
 }

@@ -4,18 +4,20 @@ import { Vacancy } from '../vacancy/vacancy.types';
 import { Resume } from '../resume/resume.types';
 
 import { IGPTService } from './chatgpt.types';
-import { CHATGPT_MAX_VACANCY_PROMPT_TOKENS, CHATGPT_VACANCY_FILTER_PROMPT, CHATGPT_VACANCY_MATCH_AND_COVER_LETTER_PROMPT } from '../../common/constants/chatgpt';
+
+import { VacancyApplication } from '../vacancy-application/vacancy-applications.types';
+
+import {
+  CHATGPT_MAX_VACANCY_PROMPT_TOKENS,
+  CHATGPT_VACANCY_FILTER_PROMPT,
+  CHATGPT_VACANCY_MATCH_AND_COVER_LETTER_PROMPT,
+} from '../../common/constants/chatgpt';
 import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
 import { HttpStatus } from '../../common/constants/https-status';
 import { logger } from '../../common/logger';
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-export type VacancyApplication = Omit<Vacancy, 'description'> & {
-  resume: string,
-  letter: string
-};
 
 export class GPTService implements IGPTService {
   // eslint-disable-next-line class-methods-use-this
@@ -26,7 +28,7 @@ export class GPTService implements IGPTService {
       return [];
     }
 
-    const chunks: string[] = GPTService.prepareVacancyChunks(vacancies);
+    const chunks: string[] = await GPTService.prepareVacancyChunks(vacancies);
     const resumeText = GPTService.prepareResumeText(resumes);
 
     let prompt = CHATGPT_VACANCY_FILTER_PROMPT;
@@ -74,7 +76,7 @@ export class GPTService implements IGPTService {
     return vacancyApplications;
   }
 
-  private static prepareVacancyChunks(vacancies: Vacancy[]): string[] {
+  private static async prepareVacancyChunks(vacancies: Vacancy[]): Promise<string[]> {
     const chunks: string[] = [];
 
     const estimateTokens = (text: string) => Math.ceil(text.length / 4);
@@ -83,7 +85,13 @@ export class GPTService implements IGPTService {
 
     for (let i = 0; i < vacancies.length; i++) {
       const vac = vacancies[i];
-      const vacText = `[${vac.link || 'ссылка не указана'}] Название: ${vac.title} Компания: ${vac.company || 'Не указано'} Описание: ${vac.description}\n`;
+
+      const vacText = `
+        [${vac.link || 'ссылка не указана'}] 
+        Название: ${vac.title} 
+        Компания: ${vac.company || 'Не указано'} 
+        Описание: ${vac.description}\n
+      `;
 
       if (estimateTokens(text + vacText) > CHATGPT_MAX_VACANCY_PROMPT_TOKENS) {
         chunks.push(text);

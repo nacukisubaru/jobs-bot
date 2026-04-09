@@ -2,10 +2,12 @@
   "scripts": {
     "auth": "node ./src/auth.js",
     "bot": "tsx ./src/bot/main.ts",
+    "app": "tsx ./src/app.ts",
     "server": "node server.js"
   },
   "dependencies": {
     "express": "5.2.1",
+    "mongoose": "^9.4.1",
     "multer": "2.1.1",
     "node-telegram-bot-api": "0.67.0",
     "openai": "6.33.0",

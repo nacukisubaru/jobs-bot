@@ -27,7 +27,7 @@ export class BrowserService {
 
     try {
       const options: LaunchOptions = {
-        headless: true,
+        headless: false,
         executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         args: ['--start-maximized', '--disable-blink-features=AutomationControlled'],
       };

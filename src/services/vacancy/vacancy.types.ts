@@ -2,7 +2,7 @@ export interface Vacancy {
   link: string;
   title: string;
   company?: string;
-  description: string;
+  description?: string;
 }
 
 export interface IVacancyFetcher {

@@ -29,7 +29,7 @@ export class VacancyService implements IVacancyFetcher {
 
       try {
         const params = new URLSearchParams({
-          text: 'react frontend developer',
+          text: 'react',
           area: '113',
           schedule: 'remote',
           page: pageNumber.toString(),
@@ -109,7 +109,6 @@ export class VacancyService implements IVacancyFetcher {
 
       const title = (await titleHandle?.textContent())?.trim() || '';
       const company = (await companyHandle?.textContent())?.trim() || '';
-
       const description = (await descriptionHandle?.textContent()) || '';
 
       return {
