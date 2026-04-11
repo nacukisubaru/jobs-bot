@@ -18,13 +18,12 @@ let currentAutoRepliesScheduler: AsyncScheduler | null = null;
 let currentApplySavedVacanciesScheduler: AsyncScheduler | null = null;
 
 async function startAutoReplies(): Promise<void> {
-  const { autoRepliesScheduler, applySavedVacanciesScheduler } = initAutoRepliesSchedulers(browser);
+  const { autoRepliesScheduler, applySavedVacanciesScheduler, startSchedulers } = initAutoRepliesSchedulers(browser);
 
   currentAutoRepliesScheduler = autoRepliesScheduler;
   currentApplySavedVacanciesScheduler = applySavedVacanciesScheduler;
 
-  autoRepliesScheduler.start();
-  applySavedVacanciesScheduler.start();
+  startSchedulers();
 }
 
 async function stopAutoReplies(task: AsyncScheduler, chatId: number): Promise<void> {
@@ -41,10 +40,9 @@ async function stopAutoReplies(task: AsyncScheduler, chatId: number): Promise<vo
 
 export async function startCommand(msg: TelegramBot.Message) {
   const chatId = msg.chat.id;
+  console.log('Start command received');
 
-  if (!browser.getContext()) {
-    await browser.start();
-  }
+  await browser.start();
 
   bot.sendMessage(chatId, BotMessageName.CHECKING_AUTORIZE).then(async () => {
     const isAuth = await browser.isAuth();

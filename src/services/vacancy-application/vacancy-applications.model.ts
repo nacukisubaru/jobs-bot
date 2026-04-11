@@ -1,30 +1,11 @@
-import {
-  Schema, model, Document, Model,
-} from 'mongoose';
+import { Schema, model } from 'mongoose';
 
-import { VacancyApplication, VacancyApplicationStatus } from './vacancy-applications.types';
+import { IVacancyApplicationModel, VacancyApplicationDocument, VacancyApplicationStatus } from './vacancy-applications.types';
 import { vacancyApplicationStatusMap } from './vacancy-applications.constants';
 
 import { AUTO_REPLY_INTERVAL_HOURS } from '../../common/constants/common';
 
-export interface VacancyApplicationDocument extends Omit<VacancyApplication, 'resume'>, Document {
-  status: VacancyApplicationStatus;
-  resumes: string[];
-  appliedResumes: string[];
-  isArchived: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface IVacancyApplicationModel extends Model<VacancyApplicationDocument> {
-  createApplication(
-    vacancyApplication: VacancyApplication,
-    status: VacancyApplicationStatus,
-    appliedResume: string
-  ): Promise<void>;
-  canApplyToVacancy(link: string): Promise<boolean>;
-  getActualVacancyApplications: () => Promise<VacancyApplication[]>;
-}
+import { VacancyApplication } from '../chatgpt/chatgpt.types';
 
 const VacancyApplicationSchema = new Schema<VacancyApplicationDocument>({
   link: { type: String, required: true },
@@ -50,7 +31,7 @@ VacancyApplicationSchema.statics.createApplication = async function (
 
   const hasVacancy = await this.findOne({ link: vacancyApplication.link });
 
-  const filtredResumes = resumes.filter((resume) => resume !== appliedResume);
+  const filtredResumes = resumes.filter((resume: string) => resume !== appliedResume);
 
   if (hasVacancy) {
     await this.updateOne(
@@ -94,6 +75,16 @@ VacancyApplicationSchema.statics.canApplyToVacancy = async function (link: strin
   const allowed = diff > AUTO_REPLY_INTERVAL_HOURS * 60 * 60 * 1000;
 
   return allowed;
+};
+
+VacancyApplicationSchema.statics.isAlreadyApplied = async function (link: string) {
+  const vacancy = await this.findOne({ link });
+
+  if (vacancy) {
+    return true;
+  }
+
+  return false;
 };
 
 VacancyApplicationSchema.statics.getActualVacancyApplications = async function (): Promise<VacancyApplication[]> {

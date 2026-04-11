@@ -20,6 +20,36 @@ export class AsyncScheduler {
     private errorMessages: { bot: string, logger: string } | null = null,
   ) {}
 
+  public start() {
+    this.isStopped = false;
+
+    this.runTask();
+  }
+
+  public stop(cb: () => void, delay: number = 60000) {
+    this.isStopped = true;
+
+    if (this.timeoutHandle) clearTimeout(this.timeoutHandle);
+
+    this.timeoutHandle = null;
+
+    if (!this.isRunning) {
+      cb();
+
+      return;
+    }
+
+    setTimeout(async () => {
+      if (!this.isRunning) {
+        cb();
+      }
+    }, delay);
+  }
+
+  public taskIsRunning() {
+    return this.isRunning;
+  }
+
   private async runTask() {
     try {
       this.isRunning = true;
@@ -60,35 +90,5 @@ export class AsyncScheduler {
     if (this.timeoutHandle) clearTimeout(this.timeoutHandle);
 
     this.timeoutHandle = setTimeout(() => this.runTask(), ms);
-  }
-
-  public start() {
-    this.isStopped = false;
-
-    this.runTask();
-  }
-
-  public stop(cb: () => void, delay: number = 60000) {
-    this.isStopped = true;
-
-    if (this.timeoutHandle) clearTimeout(this.timeoutHandle);
-
-    this.timeoutHandle = null;
-
-    if (!this.isRunning) {
-      cb();
-
-      return;
-    }
-
-    setTimeout(async () => {
-      if (!this.isRunning) {
-        cb();
-      }
-    }, delay);
-  }
-
-  public taskIsRunning() {
-    return this.isRunning;
   }
 }

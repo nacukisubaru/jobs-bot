@@ -3,11 +3,10 @@ import OpenAI from 'openai';
 import { Vacancy } from '../vacancy/vacancy.types';
 import { Resume } from '../resume/resume.types';
 
-import { IGPTService } from './chatgpt.types';
-
-import { VacancyApplication } from '../vacancy-application/vacancy-applications.types';
+import { IGPTService, VacancyApplication } from './chatgpt.types';
 
 import {
+  CHATGPT_ASK_FORM_QUESTION_PROMPT,
   CHATGPT_MAX_VACANCY_PROMPT_TOKENS,
   CHATGPT_VACANCY_FILTER_PROMPT,
   CHATGPT_VACANCY_MATCH_AND_COVER_LETTER_PROMPT,
@@ -17,10 +16,13 @@ import { AppErrorName } from '../../common/constants/errors';
 import { HttpStatus } from '../../common/constants/https-status';
 import { logger } from '../../common/logger';
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 export class GPTService implements IGPTService {
-  // eslint-disable-next-line class-methods-use-this
+  private clinet: OpenAI;
+
+  constructor() {
+    this.clinet = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+
   async generateVacancyApplications(vacancies: Vacancy[], resumes?: Resume[]): Promise<VacancyApplication[]> {
     const vacancyApplications: VacancyApplication[] = [];
 
@@ -29,6 +31,7 @@ export class GPTService implements IGPTService {
     }
 
     const chunks: string[] = await GPTService.prepareVacancyChunks(vacancies);
+
     const resumeText = GPTService.prepareResumeText(resumes);
 
     let prompt = CHATGPT_VACANCY_FILTER_PROMPT;
@@ -37,20 +40,13 @@ export class GPTService implements IGPTService {
       prompt += `${CHATGPT_VACANCY_MATCH_AND_COVER_LETTER_PROMPT} прикладываю свои резюме ${resumeText}`;
     }
 
+    if (vacancies.find((vac) => vac.form)) {
+      prompt += CHATGPT_ASK_FORM_QUESTION_PROMPT;
+    }
+
     for (const chunk of chunks) {
       try {
-        const response = await client.chat.completions.create({
-          model: 'gpt-4.1-mini',
-          messages: [
-            { role: 'system', content: prompt },
-            { role: 'user', content: chunk },
-          ],
-          response_format: {
-            type: 'json_object',
-          },
-        });
-
-        const content = response.choices[0].message?.content?.trim();
+        const content = await this.callGPT(prompt, chunk);
 
         if (content) {
           const parsedContent = JSON.parse(content);
@@ -76,6 +72,21 @@ export class GPTService implements IGPTService {
     return vacancyApplications;
   }
 
+  private async callGPT(prompt: string, chunk: string): Promise<string | undefined> {
+    const response = await this.clinet.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      messages: [
+        { role: 'system', content: prompt },
+        { role: 'user', content: chunk },
+      ],
+      response_format: {
+        type: 'json_object',
+      },
+    });
+
+    return response.choices[0].message?.content?.trim();
+  }
+
   private static async prepareVacancyChunks(vacancies: Vacancy[]): Promise<string[]> {
     const chunks: string[] = [];
 
@@ -89,8 +100,9 @@ export class GPTService implements IGPTService {
       const vacText = `
         [${vac.link || 'ссылка не указана'}] 
         Название: ${vac.title} 
-        Компания: ${vac.company || 'Не указано'} 
+        Компания: ${vac.company || 'Не указано'}
         Описание: ${vac.description}\n
+        Форма: ${vac.form ? JSON.stringify(vac.form) : 'Нет формы'}
       `;
 
       if (estimateTokens(text + vacText) > CHATGPT_MAX_VACANCY_PROMPT_TOKENS) {

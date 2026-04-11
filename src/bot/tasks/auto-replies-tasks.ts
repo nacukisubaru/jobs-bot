@@ -26,7 +26,7 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   const vacancyApplicationService = new VacancyApplicationService(context, vacancyService, gptService, resumeService);
 
   autoRepliesScheduler = createScheduledTask(
-    () => vacancyApplicationService.run(),
+    () => vacancyApplicationService.processNewVacancies(),
     AUTO_REPLIES_DELAY,
     AUTO_REPLIES_RETRY_DELAY,
     MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
@@ -35,7 +35,7 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   );
 
   applySavedVacanciesScheduler = createScheduledTask(
-    () => vacancyApplicationService.applyToSavedVacancies(),
+    () => vacancyApplicationService.processSavedVacancies(),
     AUTO_REPLIES_REPEAT_DELAY,
     AUTO_REPLIES_RETRY_REPEAT_DELAY,
     MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
@@ -43,5 +43,12 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
     BotMessageName.AUTO_REPLIES_FAILED,
   );
 
-  return { autoRepliesScheduler, applySavedVacanciesScheduler };
+  const startSchedulers = async () => {
+    autoRepliesScheduler.start();
+    //applySavedVacanciesScheduler.start();
+  };
+
+  return {
+    autoRepliesScheduler, applySavedVacanciesScheduler, startSchedulers,
+  };
 }

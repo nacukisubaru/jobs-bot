@@ -1,6 +1,7 @@
 import { BrowserContext } from 'playwright';
 
 import {
+  FormQuestion,
   IVacancyFetcher, Vacancy,
 } from './vacancy.types';
 
@@ -10,6 +11,8 @@ import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
 import { HttpStatus } from '../../common/constants/https-status';
 import { logger } from '../../common/logger';
+
+import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
 
 const { LIMIT_FETCH_VACANCIES } = process.env;
 
@@ -55,6 +58,8 @@ export class VacancyService implements IVacancyFetcher {
         }
 
         for (const vacancyLink of vacanciesLinks) {
+          if (!await VacancyApplicationModel.canApplyToVacancy(vacancyLink as string)) continue;
+
           if (LIMIT_FETCH_VACANCIES && countVacancies >= parseInt(LIMIT_FETCH_VACANCIES, 10)) {
             return allVacancies;
           }
@@ -97,7 +102,7 @@ export class VacancyService implements IVacancyFetcher {
     return allVacancies;
   }
 
-  async parseVacancyDetails(url: string): Promise<Vacancy> {
+  private async parseVacancyDetails(url: string): Promise<Vacancy> {
     const page = await this.browserContext.newPage();
 
     try {
@@ -111,11 +116,27 @@ export class VacancyService implements IVacancyFetcher {
       const company = (await companyHandle?.textContent())?.trim() || '';
       const description = (await descriptionHandle?.textContent()) || '';
 
+      const responseButton = page.locator('[data-qa^="vacancy-response-link-top"]').first();
+
+      await responseButton.waitFor({ state: 'visible', timeout: 15000 });
+      await responseButton.click();
+
+      let form = null;
+
+      try {
+        await page.waitForNavigation({ timeout: 15000 });
+
+        form = await VacancyService.parseForm(page);
+      } catch {
+        // intentionally empty
+      }
+
       return {
         link: url,
         title,
         company,
         description,
+        ...(form && { form }),
       };
     } catch (error) {
       throw new AppException(AppErrorName.VACANCY_PARSE_ERROR, {
@@ -124,5 +145,68 @@ export class VacancyService implements IVacancyFetcher {
     } finally {
       await page.close();
     }
+  }
+
+  private static async parseForm(page: any): Promise<FormQuestion[]> {
+    const formQuestions: FormQuestion[] = [];
+
+    const tasks = await page.$$('[data-qa^="task-body"]');
+
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i];
+
+      const question = await task.$('[data-qa="task-question"]');
+      const questionText = (await question.textContent())?.trim() || '';
+
+      const textarea = await task.$('textarea[type="textarea"]');
+
+      if (textarea) {
+        const textareaName = await textarea.getAttribute('name');
+
+        formQuestions.push({
+          id: textareaName,
+          question: questionText,
+        });
+      }
+
+      const radioOptions = [];
+
+      const radios = await task.$$('input[type="radio"]');
+
+      for (const radio of radios) {
+        const id = await radio.getAttribute('value');
+        const optionText = (await radio.evaluate((el: any) => (
+          el.closest('label')?.innerText
+            || el.nextSibling?.textContent
+            || ''
+        ))).trim();
+
+        radioOptions.push({ id, optionText });
+      }
+
+      const checkboxes = await task.$$('input[type="checkbox"]');
+
+      for (const checkbox of checkboxes) {
+        const id = await checkbox.getAttribute('value');
+        const optionText = (await checkbox.evaluate((el: any) => (
+          el.closest('label')?.innerText
+            || el.nextSibling?.textContent
+            || ''
+        ))).trim();
+
+        radioOptions.push({ id, optionText });
+      }
+
+      if (radioOptions.length) {
+        radioOptions.forEach((options) => {
+          formQuestions.push({
+            question: questionText,
+            options,
+          });
+        });
+      }
+    }
+
+    return formQuestions;
   }
 }

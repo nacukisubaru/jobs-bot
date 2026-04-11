@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 import { registerBotCommands } from './bot/main';
 import { AppException } from './common/exceptions';
+import { PROFILE_PATH } from './common/constants/common';
+import { BrowserService } from './services/browser/browser.service';
+import { initAutoRepliesSchedulers } from './bot/tasks/auto-replies-tasks';
 
 async function bootstrap() {
   registerBotCommands();
@@ -13,10 +16,21 @@ async function bootstrap() {
 
   await mongoose.connect(mongoUri);
 
-  // Можно передать подключение в сервисы, если нужно
-  // Или просто импортировать модели в сервисах
-
   console.log('Application started');
+
+  const startJobsBot = async () => {
+    const browser = new BrowserService(PROFILE_PATH);
+
+    await browser.start();
+
+    const { startSchedulers } = initAutoRepliesSchedulers(browser);
+
+    startSchedulers();
+  };
+
+  if (process.env.START_JOBS_BOT === 'true') {
+    startJobsBot();
+  }
 }
 
 bootstrap().catch((err) => {
