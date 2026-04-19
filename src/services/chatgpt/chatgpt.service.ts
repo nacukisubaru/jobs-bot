@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import { Vacancy } from '../vacancy/vacancy.types';
 import { Resume } from '../resume/resume.types';
 
-import { IGPTService, VacancyApplication } from './chatgpt.types';
+import { GeneratedResume, IGPTService, VacancyApplication } from './chatgpt.types';
 
 import {
   CHATGPT_ASK_FORM_QUESTION_PROMPT,
@@ -70,6 +70,39 @@ export class GPTService implements IGPTService {
     }
 
     return vacancyApplications;
+  }
+
+  async generateResumes(): Promise<GeneratedResume[]> {
+    return [{
+      profession: `Программист-${crypto.randomUUID()}`,
+      keywords: ['JavaScript', 'TypeScript'],
+      experience: [
+        {
+          company: 'Компания 1',
+          position: 'Должность 1',
+          description: 'Описание опыта 1',
+          periods: [{ month: '02', year: '2020' }, { month: '05', year: '2021' }],
+        },
+        {
+          company: 'Компания 2',
+          position: 'Должность 2',
+          description: 'Описание опыта 2',
+          periods: [{ month: '06', year: '2021' }, { month: '08', year: '2023' }],
+        },
+        {
+          company: 'Компания 3',
+          position: 'Должность 3',
+          description: 'Описание опыта 3',
+          periods: [{ month: '07', year: '2023' }, { month: '08', year: '2024' }],
+        },
+        {
+          company: 'Компания 4',
+          position: 'Должность 4',
+          description: 'Описание опыта 4',
+          periods: [{ month: '09', year: '2024' }, { month: '10', year: '2025' }],
+        },
+      ],
+    }];
   }
 
   private async callGPT(prompt: string, chunk: string): Promise<string | undefined> {

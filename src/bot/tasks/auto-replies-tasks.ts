@@ -15,13 +15,14 @@ import { AsyncScheduler } from '../../services/scheduler/scheduler.service';
 
 let autoRepliesScheduler: AsyncScheduler;
 let applySavedVacanciesScheduler: AsyncScheduler;
+let autoCreateResumesScheduler: AsyncScheduler;
 
 export function initAutoRepliesSchedulers(browser: BrowserService) {
   const context = browser.getContext();
 
   const gptService = new GPTService();
   const vacancyService = new VacancyService(context);
-  const resumeService = new ResumeService(context);
+  const resumeService = new ResumeService(context, gptService);
 
   const vacancyApplicationService = new VacancyApplicationService(context, vacancyService, gptService, resumeService);
 
@@ -43,8 +44,18 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
     BotMessageName.AUTO_REPLIES_FAILED,
   );
 
+  autoCreateResumesScheduler = createScheduledTask(
+    () => resumeService.createResumes(),
+    AUTO_REPLIES_REPEAT_DELAY,
+    AUTO_REPLIES_RETRY_REPEAT_DELAY,
+    MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+    AppErrorName.JOB_APPLICATION_AUTO_APPLY_FAILED,
+    BotMessageName.AUTO_REPLIES_FAILED,
+  );
+
   const startSchedulers = async () => {
-    autoRepliesScheduler.start();
+    // autoRepliesScheduler.start();
+    autoCreateResumesScheduler.start();
     //applySavedVacanciesScheduler.start();
   };
 

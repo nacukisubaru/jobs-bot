@@ -5,4 +5,5 @@ export interface Resume {
 
 export interface IResumeService {
   getResumes: () => Promise<Resume[]>,
+  createResumes(): Promise<void>,
 }

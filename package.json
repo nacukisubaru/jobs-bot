@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "auth": "node ./src/auth.js",
+    "auth": "tsx ./src/auth-script.ts",
     "bot": "tsx ./src/bot/main.ts",
     "app": "tsx ./src/app.ts",
     "server": "node server.js"

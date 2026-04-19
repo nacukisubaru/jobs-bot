@@ -13,6 +13,20 @@ export interface FormsAnswers {
   options: string[]
 }
 
+export interface Experience {
+  company: string;
+  position: string;
+  description: string;
+  periods: { month: string, year: string }[];
+}
+
+export interface GeneratedResume {
+  profession: string;
+  keywords: string[];
+  experience: Experience[];
+}
+
 export interface IGPTService {
   generateVacancyApplications(vacancies: Vacancy[], resumes: Resume[]): Promise<VacancyApplication[]>;
+  generateResumes(): Promise<GeneratedResume[]>;
 }
