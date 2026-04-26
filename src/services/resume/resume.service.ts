@@ -1,4 +1,4 @@
-import { BrowserContext, Page } from 'playwright';
+import { BrowserContext, Locator, Page } from 'playwright';
 
 import { IResumeService, Resume } from './resume.types';
 
@@ -11,6 +11,10 @@ import { bot } from '../../bot/bot';
 import { BotMessageName } from '../../common/constants/bot';
 import { GPTService } from '../chatgpt/chatgpt.service';
 import { Experience, GeneratedResume } from '../chatgpt/chatgpt.types';
+import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
+import { VacancyApplicationStatus } from '../vacancy-application/vacancy-applications.types';
+import { SettingsModel } from '../../models/settings/settings.model';
+import { CheckboxToggler } from '../../common/utils/checkbox-toggler';
 
 type CreateResumeDto = GeneratedResume;
 
@@ -76,7 +80,17 @@ export class ResumeService implements IResumeService {
   }
 
   async createResumes(): Promise<void> {
-    const generatedResumes = await this.gptService.generateResumes();
+    const vacancies = await VacancyApplicationModel.getVacanciesByStatus(
+      VacancyApplicationStatus.REJECTION,
+    );
+
+    const vacanciesText = vacancies.length
+      ? vacancies.map((v) => v.description).join('\n\n')
+      : '';
+
+    const generatedResumes = await this.gptService.generateResumes(vacanciesText);
+
+    console.dir(generatedResumes, { depth: null, colors: true });
 
     for (const resume of generatedResumes) {
       await this.createResume(resume);
@@ -125,13 +139,14 @@ export class ResumeService implements IResumeService {
     // =========================
     // Выбор профессии
     // =========================
-    const selectJob = page.locator('[data-qa="resume-profile-card-select-job"]');
+    const selectJob = page.locator('[data-qa="resume-profile-card-select-job"]').first();
 
-    console.log('selectJob', await selectJob.count());
+    await page.waitForLoadState('networkidle');
 
     await selectJob.waitFor({ state: 'visible' });
-    await selectJob.first().scrollIntoViewIfNeeded();
-    await selectJob.first().click({ force: true });
+    await selectJob.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(1000);
+    await selectJob.click();
 
     // =========================
     // Ввод профессии
@@ -226,6 +241,8 @@ export class ResumeService implements IResumeService {
     await chipsInput.waitFor({ state: 'visible' });
 
     for (const keyword of createResumeDto.keywords) {
+      if (await chipsInput.isDisabled()) break;
+
       await chipsInput.click();
       await chipsInput.fill(keyword);
 
@@ -257,32 +274,47 @@ export class ResumeService implements IResumeService {
     // =========================
     await nextScreen.click({ force: true });
 
+    // ========================
+    // Deactivate checkboxes
+    // ========================
+    const checkboxToggler = new CheckboxToggler(page, {
+      simpleCheckboxSelector: '[data-qa="checkbox-container"]',
+      scrollableItemSelector: '[role="listitem"]', // убрали класс с хешем
+      scrollableInputSelector: 'input[type="checkbox"]',
+      scrollableLabelSelector: 'label', // убрали класс с хешем
+      scrollButtonSelector: '[data-qa="scrollable-container__scroll-button-right"]',
+    });
+
+    // const checkboxToggler = new CheckboxToggler(page, {
+    //   simpleCheckboxSelector: '[data-qa="checkbox-container"]',
+    //   scrollableItemSelector: '[role="listitem"].resume-select-item--hKiKDVW49VsKHyt9',
+    //   scrollableInputSelector: 'input[type="checkbox"]',
+    //   scrollableLabelSelector: 'label.magritte-card___kxw8G_5-0-5',
+    //   scrollButtonSelector: '[data-qa="scrollable-container__scroll-button-right"]',
+    // });
+
+    await checkboxToggler.deactivateCheckboxes();
+
     const { experience } = createResumeDto;
-
-    await page.getByText('Работаю сейчас', { exact: true }).click();
-
-    // =========================
-    // FIRST (base form)
-    // =========================
-    await ResumeService.fillExperienceForm(page, experience[0], 0);
 
     // =========================
     // MODAL LOOP
     // =========================
-    for (let i = 1; i < experience.length; i++) {
+    for (let i = 0; i < experience.length; i++) {
       const exp = experience[i];
 
-      await page.locator('[data-qa="list-add"]').first().click();
+      const addButton = page.locator('[data-qa="list-add"]').first();
 
-      await page
-        .locator(
-          `[data-qa="resume-profile-experience-specific-company-input-${i}"]`,
-        )
-        .waitFor({ state: 'visible' });
+      await addButton.scrollIntoViewIfNeeded();
+      await addButton.click();
 
       await page.getByText('Работаю сейчас', { exact: true }).click();
 
-      await ResumeService.fillExperienceForm(page, exp, i);
+      await checkboxToggler.deactivateScrollableCheckboxes();
+
+      await ResumeService.fillExperienceForm(page, exp);
+
+      await page.waitForTimeout(70000);
 
       await page.locator('[data-qa="primary-actions"]').click();
     }
@@ -292,17 +324,18 @@ export class ResumeService implements IResumeService {
     await nextScreen.click();
   }
 
-  private static async fillExperienceForm(page: Page, exp: Experience, index = 0) {
-    const [start, end] = exp.periods ?? [];
+  private static async fillExperienceForm(page: Page, exp: Experience) {
+    const { start, end } = exp.periods ?? [];
 
     // =========================
     // START DATE - MONTH
     // =========================
-    await page
-      .locator(
-        `[data-qa="resume-profile-experience-specific-datestart-month-input-${index}"]`,
-      )
-      .click();
+    const monthInput = page.locator(
+      '[data-qa^="resume-profile-experience-specific-datestart-month-input-"]',
+    ).first();
+
+    await monthInput.waitFor({ state: 'visible' });
+    await monthInput.click();
 
     await page.waitForTimeout(150);
 
@@ -321,8 +354,9 @@ export class ResumeService implements IResumeService {
     // =========================
     await page
       .locator(
-        `[data-qa="resume-profile-experience-specific-datestart-year-input-${index}"]`,
+        '[data-qa^="resume-profile-experience-specific-datestart-year-input-"]',
       )
+      .first()
       .fill(String(start.year));
 
     // =========================
@@ -330,8 +364,9 @@ export class ResumeService implements IResumeService {
     // =========================
     await page
       .locator(
-        `[data-qa="resume-profile-experience-specific-dateend-month-input-${index}"]`,
+        '[data-qa^="resume-profile-experience-specific-dateend-month-input-"]',
       )
+      .first()
       .click();
 
     await page.waitForTimeout(150);
@@ -351,8 +386,9 @@ export class ResumeService implements IResumeService {
     // =========================
     await page
       .locator(
-        `[data-qa="resume-profile-experience-specific-dateend-year-input-${index}"]`,
+        '[data-qa^="resume-profile-experience-specific-dateend-year-input-"]',
       )
+      .first()
       .fill(String(end.year));
 
     // =========================
@@ -360,20 +396,23 @@ export class ResumeService implements IResumeService {
     // =========================
     await page
       .locator(
-        `[data-qa="resume-profile-experience-specific-company-input-${index}"]`,
+        '[data-qa^="resume-profile-experience-specific-company-input-"]',
       )
+      .first()
       .fill(exp.company ?? '');
 
     await page
       .locator(
-        `[data-qa="resume-profile-experience-specific-position-input-${index}"]`,
+        '[data-qa^="resume-profile-experience-specific-position-input-"]',
       )
+      .first()
       .fill(exp.position ?? '');
 
     await page
       .locator(
-        `[data-qa="resume-profile-experience-specific-responsibilities-input-${index}"]`,
+        '[data-qa^="resume-profile-experience-specific-responsibilities-input-"]',
       )
+      .first()
       .fill(exp.description ?? '');
   }
 }

@@ -4,6 +4,8 @@ export enum AppErrorName {
 
   RESUME_PARSE_ERROR = 'resume_parse_error',
   RESUME_EMPTY_RESUMES_META_ARRAY = 'resume_empty_resumes_meta_array',
+  RESUME_SETTINGS_NOT_FOUND = 'resume_settings_not_found',
+  RESUME_SETTINGS_INCOMPLETE = 'resume_settings_incomplete',
 
   CHATGPT_GENERATION_ERROR = 'chatgpt_generation_error',
   CHATGPT_UNEXPECTED_RESPONSE_FORMAT = 'chatgpt_unexpected_response_format',
@@ -19,6 +21,9 @@ export enum AppErrorName {
   BROWSER_CAPTCHA_DETECTED_ERROR = 'browser_captcha_detected_error',
   BROWSER_RUN_ERROR = 'browser_run_error',
   BROWSER_AUTHORIZATION_IS_EXPIRED_ERROR = 'browser_authorization_is_expired_error',
+
+  CAREER_SETTINGS_NOT_FOUND = 'career_settings_not_found',
+  CAREER_SETTINGS_INCOMPLETE = 'career_settings_incomplete',
 
   BOT_AUTO_REPLIES_RUN_ERROR = 'bot_auto_replies_run_error',
 }

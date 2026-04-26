@@ -3,10 +3,13 @@ import OpenAI from 'openai';
 import { Vacancy } from '../vacancy/vacancy.types';
 import { Resume } from '../resume/resume.types';
 
-import { GeneratedResume, IGPTService, VacancyApplication } from './chatgpt.types';
+import {
+  CallGptDto, GeneratedResume, IGPTService, VacancyApplication,
+} from './chatgpt.types';
 
 import {
   CHATGPT_ASK_FORM_QUESTION_PROMPT,
+  CHATGPT_CREATE_RESUMES_PROMPT,
   CHATGPT_MAX_VACANCY_PROMPT_TOKENS,
   CHATGPT_VACANCY_FILTER_PROMPT,
   CHATGPT_VACANCY_MATCH_AND_COVER_LETTER_PROMPT,
@@ -15,6 +18,8 @@ import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
 import { HttpStatus } from '../../common/constants/https-status';
 import { logger } from '../../common/logger';
+import { SettingsModel } from '../../models/settings/settings.model';
+import { format } from '../../common/utils/format';
 
 export class GPTService implements IGPTService {
   private clinet: OpenAI;
@@ -45,79 +50,137 @@ export class GPTService implements IGPTService {
     }
 
     for (const chunk of chunks) {
-      try {
-        const content = await this.callGPT(prompt, chunk);
+      const vacancyApplicationsResponse = await this.callGPT<VacancyApplication>({
+        prompt,
+        content: chunk,
+        field: 'vacancies',
+      });
 
-        if (content) {
-          const parsedContent = JSON.parse(content);
-
-          if (parsedContent && typeof parsedContent === 'object' && Array.isArray(parsedContent.vacancies)) {
-            vacancyApplications.push(...parsedContent.vacancies);
-          } else {
-            logger.warn(AppErrorName.CHATGPT_UNEXPECTED_RESPONSE_FORMAT, { content });
-          }
-        }
-      } catch (err) {
-        const errorName = AppErrorName.CHATGPT_GENERATION_ERROR;
-
-        logger.error(errorName, err);
-
-        throw new AppException(
-          errorName,
-          { status: HttpStatus.BAD_REQUEST, cause: err },
-        );
+      if (vacancyApplicationsResponse) {
+        vacancyApplications.push(...vacancyApplicationsResponse);
       }
     }
 
     return vacancyApplications;
   }
 
-  async generateResumes(): Promise<GeneratedResume[]> {
-    return [{
-      profession: `Программист-${crypto.randomUUID()}`,
-      keywords: ['JavaScript', 'TypeScript'],
-      experience: [
-        {
-          company: 'Компания 1',
-          position: 'Должность 1',
-          description: 'Описание опыта 1',
-          periods: [{ month: '02', year: '2020' }, { month: '05', year: '2021' }],
-        },
-        {
-          company: 'Компания 2',
-          position: 'Должность 2',
-          description: 'Описание опыта 2',
-          periods: [{ month: '06', year: '2021' }, { month: '08', year: '2023' }],
-        },
-        {
-          company: 'Компания 3',
-          position: 'Должность 3',
-          description: 'Описание опыта 3',
-          periods: [{ month: '07', year: '2023' }, { month: '08', year: '2024' }],
-        },
-        {
-          company: 'Компания 4',
-          position: 'Должность 4',
-          description: 'Описание опыта 4',
-          periods: [{ month: '09', year: '2024' }, { month: '10', year: '2025' }],
-        },
-      ],
-    }];
-  }
+  async generateResumes(content: string): Promise<GeneratedResume[]> {
+    const resumeSettings = await SettingsModel.getByKey('resume');
+    const careerSettings = await SettingsModel.getByKey('career-preferences');
 
-  private async callGPT(prompt: string, chunk: string): Promise<string | undefined> {
-    const response = await this.clinet.chat.completions.create({
-      model: 'gpt-4.1-mini',
-      messages: [
-        { role: 'system', content: prompt },
-        { role: 'user', content: chunk },
-      ],
-      response_format: {
-        type: 'json_object',
+    if (!resumeSettings) {
+      throw new AppException(AppErrorName.RESUME_SETTINGS_NOT_FOUND, {
+        status: HttpStatus.NOT_FOUND,
+      });
+    }
+
+    if (!careerSettings) {
+      throw new AppException(AppErrorName.CAREER_SETTINGS_NOT_FOUND, {
+        status: HttpStatus.NOT_FOUND,
+      });
+    }
+
+    const { resumeExamples, experiencePeriods } = resumeSettings.value;
+
+    if (!resumeExamples || !experiencePeriods) {
+      throw new AppException(AppErrorName.RESUME_SETTINGS_INCOMPLETE, {
+        status: HttpStatus.BAD_REQUEST,
+      });
+    }
+
+    const { specializations, contacts } = careerSettings.value;
+
+    if (!specializations || !specializations.length || !contacts) {
+      throw new AppException(AppErrorName.CAREER_SETTINGS_INCOMPLETE, {
+        status: HttpStatus.BAD_REQUEST,
+      });
+    }
+
+    const companiesText = resumeExamples.map((example: any) => example.company).join(', ');
+    const experienceText = resumeExamples.map((example: any) => `Компания: ${example.company}, Описание: ${example.experience}`).join('\n\n');
+    const specializationsText = specializations.join(', ');
+
+    const prompt = format(
+      CHATGPT_CREATE_RESUMES_PROMPT,
+      {
+        specializations: specializationsText,
+        companies: companiesText,
+        resumeExamples: experienceText,
+        contacts,
+        experienceCount: resumeExamples.length,
+        resumesCount: specializations.length,
+        vacancies: content,
       },
+    );
+
+    const generatedResumes: GeneratedResume[] | undefined = await this.callGPT({
+      prompt, content, field: 'resumes', max_completion_tokens: 10000,
     });
 
-    return response.choices[0].message?.content?.trim();
+    if (!generatedResumes) {
+      return [];
+    }
+
+    return generatedResumes.map((resume) => {
+      const experience = resume.experience.map((exp, index) => ({
+        ...exp,
+        periods: experiencePeriods[index] || [],
+      }));
+
+      return {
+        ...resume,
+        experience,
+      };
+    });
+  }
+
+  private async callGPT<T>({
+    prompt, content, field, max_completion_tokens,
+  }: CallGptDto): Promise<T[] | undefined> {
+    try {
+      const response = await this.clinet.chat.completions.create({
+        model: 'gpt-4.1-mini',
+        messages: [
+          { role: 'system', content: prompt },
+          ...(content ? [{ role: 'user' as const, content }] : []),
+        ],
+        response_format: {
+          type: 'json_object',
+        },
+        ...(max_completion_tokens && { max_completion_tokens }),
+      });
+
+      const result = response.choices[0].message?.content?.trim();
+
+      if (!result) {
+        return undefined;
+      }
+
+      const parsedContent = JSON.parse(result);
+
+      if (
+        parsedContent
+      && typeof parsedContent === 'object'
+      && Array.isArray(parsedContent[field])
+      ) {
+        return parsedContent[field];
+      }
+
+      logger.warn(AppErrorName.CHATGPT_UNEXPECTED_RESPONSE_FORMAT, {
+        content: result,
+      });
+
+      return undefined;
+    } catch (err) {
+      const errorName = AppErrorName.CHATGPT_GENERATION_ERROR;
+
+      logger.error(errorName, err);
+
+      throw new AppException(
+        errorName,
+        { status: HttpStatus.BAD_REQUEST, cause: err },
+      );
+    }
   }
 
   private static async prepareVacancyChunks(vacancies: Vacancy[]): Promise<string[]> {

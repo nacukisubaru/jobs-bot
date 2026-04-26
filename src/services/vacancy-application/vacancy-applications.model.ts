@@ -96,6 +96,17 @@ VacancyApplicationSchema.statics.getActualVacancyApplications = async function (
   return vacancies;
 };
 
+VacancyApplicationSchema.statics.getVacanciesByStatus = async function (
+  status: VacancyApplicationStatus,
+): Promise<VacancyApplication[]> {
+  const vacancies = await this.find({
+    isArchived: false,
+    status,
+  }).lean();
+
+  return vacancies;
+};
+
 export const VacancyApplicationModel = model<VacancyApplicationDocument, IVacancyApplicationModel>(
   'VacancyApplication',
   VacancyApplicationSchema,

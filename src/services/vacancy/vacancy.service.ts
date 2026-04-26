@@ -5,7 +5,7 @@ import {
   IVacancyFetcher, Vacancy,
 } from './vacancy.types';
 
-import { HH_URL, PAGE_PARSING_DELAY } from '../../common/constants/common';
+import { HH_URL, PAGE_PARSING_DELAY, TG_CHAT_ID } from '../../common/constants/common';
 import { sleep } from '../../common/utils/common';
 import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
@@ -13,6 +13,8 @@ import { HttpStatus } from '../../common/constants/https-status';
 import { logger } from '../../common/logger';
 
 import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
+import { BotMessageName } from '../../common/constants/bot';
+import { bot } from '../../bot/bot';
 
 const { LIMIT_FETCH_VACANCIES } = process.env;
 
@@ -20,7 +22,7 @@ export class VacancyService implements IVacancyFetcher {
   constructor(private browserContext: BrowserContext) {
   }
 
-  async getVacancies(): Promise<Vacancy[]> {
+  async getVacancies(job: string): Promise<Vacancy[]> {
     const allVacancies: Vacancy[] = [];
 
     let pageNumber = 0;
@@ -32,7 +34,7 @@ export class VacancyService implements IVacancyFetcher {
 
       try {
         const params = new URLSearchParams({
-          text: 'react',
+          text: job,
           area: '113',
           schedule: 'remote',
           page: pageNumber.toString(),
@@ -97,6 +99,12 @@ export class VacancyService implements IVacancyFetcher {
       } finally {
         await page.close();
       }
+    }
+
+    if (!allVacancies.length) {
+      logger.warn(new Error(AppErrorName.JOB_APPLICATION_VACANCIES_EMPTY_ERROR));
+
+      bot.sendMessage(TG_CHAT_ID, BotMessageName.VACANCY_PARSING_ERROR);
     }
 
     return allVacancies;

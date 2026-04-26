@@ -13,6 +13,7 @@ export const enum VacancyApplicationStatus {
 export interface VacancyApplicationDocument extends Omit<VacancyApplication, 'resume'>, Document {
   status: VacancyApplicationStatus;
   resumes: string[];
+  description: string;
   appliedResumes: string[];
   isArchived: boolean;
   createdAt: Date;
@@ -28,6 +29,7 @@ export interface IVacancyApplicationModel extends Model<VacancyApplicationDocume
   canApplyToVacancy(link: string): Promise<boolean>;
   getActualVacancyApplications: () => Promise<VacancyApplication[]>;
   isAlreadyApplied(link: string): Promise<boolean>;
+  getVacanciesByStatus(status: VacancyApplicationStatus): Promise<VacancyApplication[]>;
 }
 
 export interface SubmitApplyArgs {

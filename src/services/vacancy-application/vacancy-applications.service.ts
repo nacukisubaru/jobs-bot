@@ -1,7 +1,4 @@
 import { BrowserContext, Locator, Page } from 'playwright';
-
-import { bot } from '../../bot/bot';
-
 import { FormsAnswers, IGPTService, VacancyApplication } from '../chatgpt/chatgpt.types';
 
 import { IVacancyFetcher, Vacancy } from '../vacancy/vacancy.types';
@@ -13,12 +10,12 @@ import { SubmitApplyArgs, VacancyApplicationStatus } from './vacancy-application
 import { AppErrorName } from '../../common/constants/errors';
 import { logger } from '../../common/logger';
 import {
-  PAGE_PARSING_DELAY, TG_CHAT_ID,
+  PAGE_PARSING_DELAY,
 } from '../../common/constants/common';
 import { sleep } from '../../common/utils/common';
-import { BotMessageName } from '../../common/constants/bot';
 import { VacancyApplicationModel } from './vacancy-applications.model';
 import { vacancyApplicationStatusMap } from './vacancy-applications.constants';
+import { SettingsModel } from '../../models/settings/settings.model';
 
 export class VacancyApplicationService {
   constructor(
@@ -45,20 +42,38 @@ export class VacancyApplicationService {
 
     if (!resumes.length) return [];
 
-    const vacancies: Vacancy[] = await this.vacancyFetcher.getVacancies();
+    const careerSettings = await SettingsModel.getByKey('career-preferences');
+
+    const { specializations } = careerSettings.value;
+
+    const vacancies: Vacancy[] = [];
+
+    for (const specialization of specializations) {
+      const fetchedVacancies = await this.vacancyFetcher.getVacancies(specialization);
+
+      vacancies.push(...fetchedVacancies);
+    }
+
+    const vacanciesMap = new Map(vacancies.map((vacancy) => [vacancy.link, vacancy]));
 
     if (!vacancies.length) {
-      logger.warn(new Error(AppErrorName.JOB_APPLICATION_VACANCIES_EMPTY_ERROR));
-
-      bot.sendMessage(TG_CHAT_ID, BotMessageName.VACANCY_PARSING_ERROR);
-
       return [];
     }
 
-    return this.gptService.generateVacancyApplications(
+    const applications = await this.gptService.generateVacancyApplications(
       vacancies,
       resumes,
     );
+
+    return applications.map((application) => {
+      const vacancyData = vacanciesMap.get(application.link);
+
+      if (vacancyData) {
+        return { ...application, description: vacancyData.description };
+      }
+
+      return application;
+    });
   }
 
   private async applyToJobs(vacancyApplications: VacancyApplication[]) {

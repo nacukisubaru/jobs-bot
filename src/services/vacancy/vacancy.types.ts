@@ -7,7 +7,7 @@ export interface Vacancy {
 }
 
 export interface IVacancyFetcher {
-  getVacancies(): Promise<Vacancy[]>;
+  getVacancies(job: string): Promise<Vacancy[]>;
 }
 
 export type FormQuestion =
