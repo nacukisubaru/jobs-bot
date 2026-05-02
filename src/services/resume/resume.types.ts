@@ -12,6 +12,7 @@ export interface Experience {
 
 export interface Resume {
   profession: string;
+  specialization: number;
   keywords: string[];
   experience: Experience[];
 }

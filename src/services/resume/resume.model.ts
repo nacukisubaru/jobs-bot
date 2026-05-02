@@ -28,6 +28,10 @@ const ResumeSchema = new Schema<ResumeDocument>(
       type: String,
       required: true,
     },
+    specialization: {
+      type: Number,
+      required: true,
+    },
     keywords: {
       type: [String],
       required: true,
