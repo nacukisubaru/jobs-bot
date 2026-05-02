@@ -19,13 +19,23 @@ export class CheckboxToggler {
 
     await checkboxes.first().waitFor({ state: 'visible' });
 
+    // Ждём пока все элементы появятся в DOM
+    // await this.page.waitForFunction(
+    //   (selector) => document.querySelectorAll(selector).length > 1,
+    //   this.config.simpleCheckboxSelector,
+    // );
+
     const count = await checkboxes.count();
+
+    const deactivatedCheckboxes = [];
 
     for (let i = 0; i < count; i++) {
       const checkbox = checkboxes.nth(i);
 
       await checkbox.scrollIntoViewIfNeeded();
       await checkbox.click();
+
+      deactivatedCheckboxes.push(checkbox);
     }
   }
 

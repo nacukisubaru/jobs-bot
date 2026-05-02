@@ -1,3 +1,8 @@
+import path from 'path';
+import fs from 'fs/promises';
+
+import { Page } from 'playwright';
+
 export async function sleep(delay: number) {
   return new Promise((r) => { setTimeout(r, delay); });
 }
@@ -5,3 +10,22 @@ export async function sleep(delay: number) {
 export const hours = (h: number) => h * 60 * 60 * 1000;
 export const minutes = (m: number) => m * 60 * 1000;
 export const seconds = (s: number) => s * 1000;
+
+export async function debugScreenshot(page: Page, label: string = 'debug'): Promise<void> {
+  await fs.mkdir('debug-screenshots', { recursive: true });
+
+  const random = Math.random().toString(36).substring(2, 8);
+  const filename = `${label}_${random}.png`;
+  const filepath = path.join('debug-screenshots', filename);
+
+  await page.screenshot({ path: filepath, fullPage: true });
+}
+
+export function truncateText(text: string, limit = 500) {
+  if (text.length <= limit || !text) return text;
+
+  const cut = text.slice(0, limit);
+  const lastSpace = cut.lastIndexOf(' ');
+
+  return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd()}...`;
+}

@@ -1,79 +1,79 @@
 import { BrowserContext, Locator, Page } from 'playwright';
-import { FormsAnswers, IGPTService, VacancyApplication } from '../chatgpt/chatgpt.types';
+import { FormsAnswers, IGPTService } from '../chatgpt/chatgpt.types';
 
-import { IVacancyFetcher, Vacancy } from '../vacancy/vacancy.types';
+import { IVacancyFetcher } from '../vacancy/vacancy.types';
 
-import { IResumeService } from '../resume/resume.types';
-
-import { SubmitApplyArgs, VacancyApplicationStatus } from './vacancy-applications.types';
+import { SubmitApplyArgs, VacancyApplication, VacancyApplicationStatus } from './vacancy-applications.types';
 
 import { AppErrorName } from '../../common/constants/errors';
 import { logger } from '../../common/logger';
 import {
   PAGE_PARSING_DELAY,
 } from '../../common/constants/common';
-import { sleep } from '../../common/utils/common';
+import { debugScreenshot, sleep, truncateText } from '../../common/utils/common';
+import { AppException } from '../../common/exceptions';
+
 import { VacancyApplicationModel } from './vacancy-applications.model';
 import { vacancyApplicationStatusMap } from './vacancy-applications.constants';
+
 import { SettingsModel } from '../../models/settings/settings.model';
+
+import { ResumeModel } from '../resume/resume.model';
 
 export class VacancyApplicationService {
   constructor(
     private browserContext: BrowserContext,
     private vacancyFetcher: IVacancyFetcher,
     private gptService: IGPTService,
-    private resumeService: IResumeService,
   ) {}
 
   public async processNewVacancies(): Promise<void> {
-    const vacancyApplications: VacancyApplication[] = await this.prepareVacancyApplications();
+    const careerSettings = await SettingsModel.getByKey('career-preferences');
 
-    await this.applyToJobs(vacancyApplications);
+    const { specializations } = careerSettings.value;
+
+    for (const specialization of specializations) {
+      const fetchedVacancies = await this.vacancyFetcher.getVacancies(specialization.name);
+
+      const resumes = await ResumeModel.getResumesBySpec(specialization.id);
+
+      if (!fetchedVacancies.length) {
+        throw new AppException(AppErrorName.VACANCY_APPLICATIONS_FETCH_ERROR);
+      }
+
+      const vacanciesMap = new Map(fetchedVacancies.map((vacancy) => [
+        vacancy.link,
+        { ...vacancy, description: truncateText(vacancy?.description || '') },
+      ]));
+
+      const keywords = resumes[0]?.keywords?.join(',') || '';
+
+      const generatedApplications = await this.gptService.generateVacancyApplications(
+        [...vacanciesMap.values()],
+        specialization,
+        keywords,
+      );
+
+      await this.applyToJobs(generatedApplications.flatMap((application) => {
+        const vacancyData = vacanciesMap.get(application.link);
+
+        if (!vacancyData) return [];
+
+        return [{
+          ...vacancyData,
+          ...application,
+          resumes: resumes.map((resume) => resume.profession),
+        }];
+      }) as VacancyApplication[]); // todo поправить типизацию
+
+      await this.vacancyFetcher.markVacancySeen([...vacanciesMap.keys()]);
+    }
   }
 
   public async processSavedVacancies() {
     const vacancyApplications = await VacancyApplicationModel.getActualVacancyApplications();
 
     this.applyToJobs(vacancyApplications);
-  }
-
-  private async prepareVacancyApplications(): Promise<VacancyApplication[]> {
-    const resumes = await this.resumeService.getResumes();
-
-    if (!resumes.length) return [];
-
-    const careerSettings = await SettingsModel.getByKey('career-preferences');
-
-    const { specializations } = careerSettings.value;
-
-    const vacancies: Vacancy[] = [];
-
-    for (const specialization of specializations) {
-      const fetchedVacancies = await this.vacancyFetcher.getVacancies(specialization);
-
-      vacancies.push(...fetchedVacancies);
-    }
-
-    const vacanciesMap = new Map(vacancies.map((vacancy) => [vacancy.link, vacancy]));
-
-    if (!vacancies.length) {
-      return [];
-    }
-
-    const applications = await this.gptService.generateVacancyApplications(
-      vacancies,
-      resumes,
-    );
-
-    return applications.map((application) => {
-      const vacancyData = vacanciesMap.get(application.link);
-
-      if (vacancyData) {
-        return { ...application, description: vacancyData.description };
-      }
-
-      return application;
-    });
   }
 
   private async applyToJobs(vacancyApplications: VacancyApplication[]) {
@@ -140,6 +140,8 @@ export class VacancyApplicationService {
         page, vacancy, currentStatus, appliedResume,
       });
     } catch (err) {
+      await debugScreenshot(page, 'apply-to-job');
+
       logger.error(AppErrorName.JOB_APPLICATION_AUTO_APPLY_TO_JOB_ERROR, err);
     } finally {
       await sleep(PAGE_PARSING_DELAY);
@@ -205,20 +207,26 @@ export class VacancyApplicationService {
   ) {
     const { inputs, options } = vacancy.form as FormsAnswers;
 
-    for (const input of inputs) {
-      const { id, value } = input;
-
-      const inputLocator = page.locator(`textarea[name="${id}"]`);
-
-      await inputLocator.waitFor({ state: 'visible' });
-      await inputLocator.fill(value);
-    }
-
     for (const optionId of options) {
       const optionLocator = page.locator(`input[value="${optionId}"]`);
 
       await optionLocator.waitFor({ state: 'visible' });
       await optionLocator.click();
+    }
+
+    for (const input of inputs) {
+      const { id, value } = input;
+
+      try {
+        const inputLocator = page.locator(`textarea[name="${id}"]`);
+
+        await inputLocator.waitFor({ state: 'visible' });
+        await inputLocator.fill(value);
+      } catch (error) {
+        logger.warn(`INPUT_NOT_APPEREAD_IN_FORM element=${id} vacancy=${vacancy.link}`);
+
+        continue;
+      }
     }
 
     const resumeTitle = page.locator('[data-qa="resume-title"]');
@@ -250,10 +258,12 @@ export class VacancyApplicationService {
       responseModalButton.click(),
     ]);
 
-    if (response.status() === 204) {
+    const status = response.status();
+
+    if (status === 204 || status === 200) {
       await VacancyApplicationModel.createApplication(vacancy, currentStatus, appliedResume);
     } else {
-      logger.warn(`Apply failed with status: ${response.status()}`);
+      logger.warn(`Apply failed with status: ${status}`);
     }
   }
 }

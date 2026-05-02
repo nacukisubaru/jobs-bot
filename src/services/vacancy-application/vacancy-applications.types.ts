@@ -1,7 +1,11 @@
 import { Model } from 'mongoose';
 import { Page } from 'playwright';
 
-import { VacancyApplication } from '../chatgpt/chatgpt.types';
+import { GeneratedVacancyApplication } from '../chatgpt/chatgpt.types';
+
+import { Vacancy } from '../vacancy/vacancy.types';
+
+export type VacancyApplication = Omit<Vacancy, 'form'> & GeneratedVacancyApplication;
 
 export const enum VacancyApplicationStatus {
   REJECTION = 'rejection',
@@ -30,6 +34,7 @@ export interface IVacancyApplicationModel extends Model<VacancyApplicationDocume
   getActualVacancyApplications: () => Promise<VacancyApplication[]>;
   isAlreadyApplied(link: string): Promise<boolean>;
   getVacanciesByStatus(status: VacancyApplicationStatus): Promise<VacancyApplication[]>;
+  getRecentInterviews(): Promise<VacancyApplication[]>;
 }
 
 export interface SubmitApplyArgs {

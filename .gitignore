@@ -29,3 +29,5 @@ build/
 
 # Environment variables
 .env
+
+debug-screenshots

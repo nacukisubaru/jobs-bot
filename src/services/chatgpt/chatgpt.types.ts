@@ -1,8 +1,11 @@
+import { SpecializationSetting } from '../../models/settings/settings.types';
+
 import { Resume } from '../resume/resume.types';
 
 import { Vacancy } from '../vacancy/vacancy.types';
 
-export interface VacancyApplication extends Omit<Vacancy, 'form'> {
+export interface GeneratedVacancyApplication {
+  link: string,
   form?: FormsAnswers;
   resumes: string[],
   letter: string
@@ -13,27 +16,19 @@ export interface FormsAnswers {
   options: string[]
 }
 
-export interface Experience {
-  company: string;
-  position: string;
-  description: string;
-  periods: { start: { month: string, year: string }, end: { month: string, year: string } };
-}
-
-export interface GeneratedResume {
-  profession: string;
-  keywords: string[];
-  experience: Experience[];
-}
-
 export interface CallGptDto {
   prompt: string,
   content?: string,
-  field: string,
+  field?: string,
   max_completion_tokens?: number,
 }
 
 export interface IGPTService {
-  generateVacancyApplications(vacancies: Vacancy[], resumes: Resume[]): Promise<VacancyApplication[]>;
-  generateResumes(content: string): Promise<GeneratedResume[]>;
+  generateVacancyApplications(
+    vacancies: Vacancy[],
+    specialization: SpecializationSetting,
+    keywords: string,
+  ): Promise<GeneratedVacancyApplication[]>;
+  generateResumes(content: string): Promise<Resume[]>;
+  analyzeInterviewPatterns(): Promise<string>;
 }

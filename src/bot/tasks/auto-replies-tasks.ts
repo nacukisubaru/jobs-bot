@@ -12,6 +12,7 @@ import { AppErrorName } from '../../common/constants/errors';
 import { BotMessageName } from '../../common/constants/bot';
 import { createScheduledTask } from '../../services/scheduler/scheduler-factory';
 import { AsyncScheduler } from '../../services/scheduler/scheduler.service';
+import { redisService } from '../../services/redis/redis.service';
 
 let autoRepliesScheduler: AsyncScheduler;
 let applySavedVacanciesScheduler: AsyncScheduler;
@@ -21,10 +22,10 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   const context = browser.getContext();
 
   const gptService = new GPTService();
-  const vacancyService = new VacancyService(context);
+  const vacancyService = new VacancyService(context, redisService);
   const resumeService = new ResumeService(context, gptService);
 
-  const vacancyApplicationService = new VacancyApplicationService(context, vacancyService, gptService, resumeService);
+  const vacancyApplicationService = new VacancyApplicationService(context, vacancyService, gptService);
 
   autoRepliesScheduler = createScheduledTask(
     () => vacancyApplicationService.processNewVacancies(),
@@ -54,9 +55,9 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   );
 
   const startSchedulers = async () => {
-    // autoRepliesScheduler.start();
-    autoCreateResumesScheduler.start();
-    //applySavedVacanciesScheduler.start();
+    autoRepliesScheduler.start();
+    // autoCreateResumesScheduler.start();
+    // applySavedVacanciesScheduler.start();
   };
 
   return {

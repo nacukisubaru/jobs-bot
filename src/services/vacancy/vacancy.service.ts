@@ -5,21 +5,29 @@ import {
   IVacancyFetcher, Vacancy,
 } from './vacancy.types';
 
-import { HH_URL, PAGE_PARSING_DELAY, TG_CHAT_ID } from '../../common/constants/common';
-import { sleep } from '../../common/utils/common';
+import {
+  HH_URL, PAGE_PARSING_DELAY, SEEN_VACANCIES_KEY, SEEN_VACANCIES_TTL, TG_CHAT_ID,
+} from '../../common/constants/common';
+import { debugScreenshot, sleep } from '../../common/utils/common';
 import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
 import { HttpStatus } from '../../common/constants/https-status';
 import { logger } from '../../common/logger';
+import { BotMessageName } from '../../common/constants/bot';
 
 import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
-import { BotMessageName } from '../../common/constants/bot';
+
 import { bot } from '../../bot/bot';
+
+import { RedisService } from '../redis/redis.service';
 
 const { LIMIT_FETCH_VACANCIES } = process.env;
 
 export class VacancyService implements IVacancyFetcher {
-  constructor(private browserContext: BrowserContext) {
+  constructor(
+    private browserContext: BrowserContext,
+    private redisService: RedisService,
+  ) {
   }
 
   async getVacancies(job: string): Promise<Vacancy[]> {
@@ -36,10 +44,7 @@ export class VacancyService implements IVacancyFetcher {
         const params = new URLSearchParams({
           text: job,
           area: '113',
-          schedule: 'remote',
           page: pageNumber.toString(),
-          search_field: 'name',
-          order_by: 'publication_time',
         });
 
         const searchUrl = `${HH_URL}/search/vacancy?${params.toString()}`;
@@ -60,23 +65,25 @@ export class VacancyService implements IVacancyFetcher {
         }
 
         for (const vacancyLink of vacanciesLinks) {
+          if (await this.isVacancySeen(vacancyLink as string)) continue;
+
           if (!await VacancyApplicationModel.canApplyToVacancy(vacancyLink as string)) continue;
 
           if (LIMIT_FETCH_VACANCIES && countVacancies >= parseInt(LIMIT_FETCH_VACANCIES, 10)) {
             return allVacancies;
           }
 
+          await this.markVacancySeen(vacancyLink as string);
+
           try {
             const vacancy = await this.parseVacancyDetails(vacancyLink as string);
 
             allVacancies.push(vacancy);
-
             countVacancies++;
 
             await sleep(PAGE_PARSING_DELAY);
           } catch (error) {
             logger.error(AppErrorName.VACANCY_PARSE_ERROR, error);
-
             continue;
           }
         }
@@ -95,6 +102,8 @@ export class VacancyService implements IVacancyFetcher {
 
         await sleep(PAGE_PARSING_DELAY);
       } catch (error) {
+        await debugScreenshot(page, 'parse-vacancies');
+
         logger.error(AppErrorName.VACANCY_PARSE_ERROR, error);
       } finally {
         await page.close();
@@ -103,11 +112,14 @@ export class VacancyService implements IVacancyFetcher {
 
     if (!allVacancies.length) {
       logger.warn(new Error(AppErrorName.JOB_APPLICATION_VACANCIES_EMPTY_ERROR));
-
       bot.sendMessage(TG_CHAT_ID, BotMessageName.VACANCY_PARSING_ERROR);
     }
 
     return allVacancies;
+  }
+
+  public async markVacancySeen(url: string | string[]): Promise<void> {
+    await this.redisService.addMember(SEEN_VACANCIES_KEY, url, SEEN_VACANCIES_TTL);
   }
 
   private async parseVacancyDetails(url: string): Promise<Vacancy> {
@@ -183,6 +195,10 @@ export class VacancyService implements IVacancyFetcher {
 
       for (const radio of radios) {
         const id = await radio.getAttribute('value');
+
+        // Проверяем чтобы не предлаглать к выбору "свой вариант", так как иначе может при заполнении упасть
+        if (id === 'open') continue;
+
         const optionText = (await radio.evaluate((el: any) => (
           el.closest('label')?.innerText
             || el.nextSibling?.textContent
@@ -216,5 +232,9 @@ export class VacancyService implements IVacancyFetcher {
     }
 
     return formQuestions;
+  }
+
+  private async isVacancySeen(url: string): Promise<boolean> {
+    return this.redisService.isMember(SEEN_VACANCIES_KEY, url);
   }
 }

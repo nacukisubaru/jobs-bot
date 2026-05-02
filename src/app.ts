@@ -1,9 +1,12 @@
 import mongoose from 'mongoose';
+
 import { registerBotCommands } from './bot/main';
+import { initAutoRepliesSchedulers } from './bot/tasks/auto-replies-tasks';
+
 import { AppException } from './common/exceptions';
 import { PROFILE_PATH } from './common/constants/common';
+
 import { BrowserService } from './services/browser/browser.service';
-import { initAutoRepliesSchedulers } from './bot/tasks/auto-replies-tasks';
 
 async function bootstrap() {
   registerBotCommands();

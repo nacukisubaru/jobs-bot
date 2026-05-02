@@ -8,6 +8,7 @@ export interface Vacancy {
 
 export interface IVacancyFetcher {
   getVacancies(job: string): Promise<Vacancy[]>;
+  markVacancySeen(url: string | string[]): Promise<void>;
 }
 
 export type FormQuestion =

@@ -18,7 +18,11 @@ let currentAutoRepliesScheduler: AsyncScheduler | null = null;
 let currentApplySavedVacanciesScheduler: AsyncScheduler | null = null;
 
 async function startAutoReplies(): Promise<void> {
-  const { autoRepliesScheduler, applySavedVacanciesScheduler, startSchedulers } = initAutoRepliesSchedulers(browser);
+  const {
+    autoRepliesScheduler,
+    applySavedVacanciesScheduler,
+    startSchedulers,
+  } = initAutoRepliesSchedulers(browser);
 
   currentAutoRepliesScheduler = autoRepliesScheduler;
   currentApplySavedVacanciesScheduler = applySavedVacanciesScheduler;

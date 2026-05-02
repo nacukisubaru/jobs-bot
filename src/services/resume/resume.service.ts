@@ -1,22 +1,11 @@
-import { BrowserContext, Locator, Page } from 'playwright';
+import { BrowserContext, Page } from 'playwright';
 
-import { IResumeService, Resume } from './resume.types';
+import { Experience, IResumeService, Resume } from './resume.types';
+import { ResumeModel } from './resume.model';
 
-import { HH_URL, TG_CHAT_ID } from '../../common/constants/common';
-import { AppException } from '../../common/exceptions';
-import { AppErrorName } from '../../common/constants/errors';
-import { HttpStatus } from '../../common/constants/https-status';
-import { logger } from '../../common/logger';
-import { bot } from '../../bot/bot';
-import { BotMessageName } from '../../common/constants/bot';
 import { GPTService } from '../chatgpt/chatgpt.service';
-import { Experience, GeneratedResume } from '../chatgpt/chatgpt.types';
-import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
-import { VacancyApplicationStatus } from '../vacancy-application/vacancy-applications.types';
-import { SettingsModel } from '../../models/settings/settings.model';
-import { CheckboxToggler } from '../../common/utils/checkbox-toggler';
 
-type CreateResumeDto = GeneratedResume;
+import { CheckboxToggler } from '../../common/utils/checkbox-toggler';
 
 export class ResumeService implements IResumeService {
   constructor(
@@ -24,111 +13,21 @@ export class ResumeService implements IResumeService {
     private gptService: GPTService,
   ) {}
 
-  async getResumes(): Promise<Resume[]> {
-    const page: Page = await this.browserContext.newPage();
-
-    const resumes: Resume[] = [];
-
-    try {
-      await page.goto(`${HH_URL}/applicant/resumes`, { waitUntil: 'domcontentloaded' });
-
-      const resumesMeta = await page.$$eval(
-        '[data-qa^="resume-card-link-"]',
-        (els) => els
-          .map((el) => ({
-            link: el.getAttribute('href'),
-            title: el
-              .querySelector('[data-qa="resume-title"]')
-              ?.textContent?.trim(),
-          }))
-          .filter((r): r is { link: string, title: string } => Boolean(r.link && r.title)),
-      );
-
-      if (resumesMeta.length === 0) {
-        logger.error(AppErrorName.RESUME_EMPTY_RESUMES_META_ARRAY, new Error(AppErrorName.RESUME_PARSE_ERROR));
-
-        return [];
-      }
-
-      for (const resume of resumesMeta) {
-        try {
-          const content = await this.getResumeDetails(resume.link);
-
-          resumes.push({
-            title: resume.title,
-            content,
-          });
-        } catch (err) {
-          logger.error(AppErrorName.RESUME_PARSE_ERROR, err);
-
-          continue;
-        }
-      }
-    } catch (err) {
-      logger.error(AppErrorName.RESUME_PARSE_ERROR, err);
-    } finally {
-      await page.close();
-    }
-
-    if (!resumes.length) {
-      logger.warn(new Error(AppErrorName.JOB_APPLICATION_RESUMES_EMPTY_ERROR));
-
-      bot.sendMessage(TG_CHAT_ID, BotMessageName.RESUMES_PARSING_ERROR);
-    }
-
-    return resumes;
-  }
-
   async createResumes(): Promise<void> {
-    const vacancies = await VacancyApplicationModel.getVacanciesByStatus(
-      VacancyApplicationStatus.REJECTION,
-    );
-
-    const vacanciesText = vacancies.length
-      ? vacancies.map((v) => v.description).join('\n\n')
-      : '';
-
-    const generatedResumes = await this.gptService.generateResumes(vacanciesText);
+    const generatedResumes = await this.gptService.generateResumes();
 
     console.dir(generatedResumes, { depth: null, colors: true });
 
+    await ResumeModel.deleteAll();
+
     for (const resume of generatedResumes) {
       await this.createResume(resume);
+
+      await ResumeModel.createResume(resume);
     }
   }
 
-  private async getResumeDetails(link: string): Promise<string> {
-    const page: Page = await this.browserContext.newPage();
-
-    let experienceText = '';
-
-    try {
-      await page.goto(`${HH_URL}${link}`, { waitUntil: 'domcontentloaded' });
-
-      experienceText = await page.$$eval(
-        '[data-qa="resume-list-card-experience"]',
-        (blocks) => blocks.map((b) => b.textContent?.trim()).join('\n\n'),
-      );
-
-      if (!experienceText) {
-        throw new AppException(
-          AppErrorName.RESUME_PARSE_ERROR,
-          { status: HttpStatus.BAD_REQUEST, cause: 'EMPTY_CONTENT_IN_RESUME_DETAILS' },
-        );
-      }
-    } catch (err) {
-      throw new AppException(
-        AppErrorName.RESUME_PARSE_ERROR,
-        { status: HttpStatus.BAD_REQUEST, cause: err },
-      );
-    } finally {
-      await page.close();
-    }
-
-    return experienceText;
-  }
-
-  private async createResume(createResumeDto: CreateResumeDto): Promise<void> {
+  private async createResume(createResumeDto: Resume): Promise<void> {
     const page: Page = await this.browserContext.newPage();
 
     await page.goto(
@@ -279,19 +178,11 @@ export class ResumeService implements IResumeService {
     // ========================
     const checkboxToggler = new CheckboxToggler(page, {
       simpleCheckboxSelector: '[data-qa="checkbox-container"]',
-      scrollableItemSelector: '[role="listitem"]', // убрали класс с хешем
+      scrollableItemSelector: '[role="listitem"].resume-select-item--hKiKDVW49VsKHyt9',
       scrollableInputSelector: 'input[type="checkbox"]',
-      scrollableLabelSelector: 'label', // убрали класс с хешем
+      scrollableLabelSelector: 'label.magritte-card___kxw8G_5-0-5',
       scrollButtonSelector: '[data-qa="scrollable-container__scroll-button-right"]',
     });
-
-    // const checkboxToggler = new CheckboxToggler(page, {
-    //   simpleCheckboxSelector: '[data-qa="checkbox-container"]',
-    //   scrollableItemSelector: '[role="listitem"].resume-select-item--hKiKDVW49VsKHyt9',
-    //   scrollableInputSelector: 'input[type="checkbox"]',
-    //   scrollableLabelSelector: 'label.magritte-card___kxw8G_5-0-5',
-    //   scrollButtonSelector: '[data-qa="scrollable-container__scroll-button-right"]',
-    // });
 
     await checkboxToggler.deactivateCheckboxes();
 
@@ -304,17 +195,16 @@ export class ResumeService implements IResumeService {
       const exp = experience[i];
 
       const addButton = page.locator('[data-qa="list-add"]').first();
+      await addButton.waitFor({ state: 'visible' });
 
       await addButton.scrollIntoViewIfNeeded();
-      await addButton.click();
+      await addButton.dispatchEvent('click');
 
       await page.getByText('Работаю сейчас', { exact: true }).click();
 
       await checkboxToggler.deactivateScrollableCheckboxes();
 
       await ResumeService.fillExperienceForm(page, exp);
-
-      await page.waitForTimeout(70000);
 
       await page.locator('[data-qa="primary-actions"]').click();
     }

@@ -1,20 +1,22 @@
 import { Schema, model } from 'mongoose';
 
-import { IVacancyApplicationModel, VacancyApplicationDocument, VacancyApplicationStatus } from './vacancy-applications.types';
+import {
+  IVacancyApplicationModel, VacancyApplication, VacancyApplicationDocument, VacancyApplicationStatus,
+} from './vacancy-applications.types';
 import { vacancyApplicationStatusMap } from './vacancy-applications.constants';
 
 import { AUTO_REPLY_INTERVAL_HOURS } from '../../common/constants/common';
-
-import { VacancyApplication } from '../chatgpt/chatgpt.types';
 
 const VacancyApplicationSchema = new Schema<VacancyApplicationDocument>({
   link: { type: String, required: true },
   title: { type: String, required: true },
   company: { type: String },
   resumes: { type: [String], required: true },
+  description: { type: String },
   appliedResumes: { type: [String], default: [] },
   letter: { type: String, required: true },
   status: { type: String, required: true },
+  isArchived: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
@@ -52,7 +54,7 @@ VacancyApplicationSchema.statics.createApplication = async function (
     return;
   }
 
-  await this.insertOne({
+  await this.create({
     ...vacancyApplication,
     resumes: filtredResumes,
     appliedResumes: [appliedResume],
@@ -102,6 +104,18 @@ VacancyApplicationSchema.statics.getVacanciesByStatus = async function (
   const vacancies = await this.find({
     isArchived: false,
     status,
+  }).lean();
+
+  return vacancies;
+};
+
+VacancyApplicationSchema.statics.getRecentInterviews = async function (): Promise<VacancyApplication[]> {
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const vacancies = await this.find({
+    isArchived: false,
+    status: VacancyApplicationStatus.INTERVIEW,
+    updatedAt: { $gte: oneWeekAgo },
   }).lean();
 
   return vacancies;

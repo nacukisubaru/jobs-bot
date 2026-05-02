@@ -4,15 +4,15 @@ import { Vacancy } from '../vacancy/vacancy.types';
 import { Resume } from '../resume/resume.types';
 
 import {
-  CallGptDto, GeneratedResume, IGPTService, VacancyApplication,
+  CallGptDto, GeneratedVacancyApplication, IGPTService,
 } from './chatgpt.types';
 
 import {
+  CHATGPT_ANALYZE_VACANCIES_PATTERNS,
   CHATGPT_ASK_FORM_QUESTION_PROMPT,
   CHATGPT_CREATE_RESUMES_PROMPT,
   CHATGPT_MAX_VACANCY_PROMPT_TOKENS,
   CHATGPT_VACANCY_FILTER_PROMPT,
-  CHATGPT_VACANCY_MATCH_AND_COVER_LETTER_PROMPT,
 } from '../../common/constants/chatgpt';
 import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
@@ -20,6 +20,11 @@ import { HttpStatus } from '../../common/constants/https-status';
 import { logger } from '../../common/logger';
 import { SettingsModel } from '../../models/settings/settings.model';
 import { format } from '../../common/utils/format';
+import { PromptBuilder } from '../../common/utils/prompt-builder';
+
+import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
+
+import { SpecializationSetting } from '../../models/settings/settings.types';
 
 export class GPTService implements IGPTService {
   private clinet: OpenAI;
@@ -28,33 +33,36 @@ export class GPTService implements IGPTService {
     this.clinet = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
 
-  async generateVacancyApplications(vacancies: Vacancy[], resumes?: Resume[]): Promise<VacancyApplication[]> {
-    const vacancyApplications: VacancyApplication[] = [];
+  async generateVacancyApplications(
+    vacancies: Vacancy[],
+    specialization: SpecializationSetting,
+    keywords: string,
+  ): Promise<GeneratedVacancyApplication[]> {
+    const vacancyApplications: GeneratedVacancyApplication[] = [];
 
     if (!vacancies.length) {
       return [];
     }
 
+    const prompt = new PromptBuilder();
+
     const chunks: string[] = await GPTService.prepareVacancyChunks(vacancies);
 
-    const resumeText = GPTService.prepareResumeText(resumes);
-
-    let prompt = CHATGPT_VACANCY_FILTER_PROMPT;
-
-    if (resumeText) {
-      prompt += `${CHATGPT_VACANCY_MATCH_AND_COVER_LETTER_PROMPT} прикладываю свои резюме ${resumeText}`;
-    }
+    prompt.add('Фильтр', format(CHATGPT_VACANCY_FILTER_PROMPT, {
+      specialization: specialization.name,
+      ...(keywords && { keywords }),
+    }));
 
     if (vacancies.find((vac) => vac.form)) {
-      prompt += CHATGPT_ASK_FORM_QUESTION_PROMPT;
+      prompt.add('Формы', CHATGPT_ASK_FORM_QUESTION_PROMPT);
     }
 
     for (const chunk of chunks) {
-      const vacancyApplicationsResponse = await this.callGPT<VacancyApplication>({
-        prompt,
+      const vacancyApplicationsResponse = await this.callGPT<GeneratedVacancyApplication>({
+        prompt: prompt.build(),
         content: chunk,
         field: 'vacancies',
-      });
+      }) as GeneratedVacancyApplication[];
 
       if (vacancyApplicationsResponse) {
         vacancyApplications.push(...vacancyApplicationsResponse);
@@ -64,7 +72,7 @@ export class GPTService implements IGPTService {
     return vacancyApplications;
   }
 
-  async generateResumes(content: string): Promise<GeneratedResume[]> {
+  async generateResumes(): Promise<Resume[]> {
     const resumeSettings = await SettingsModel.getByKey('resume');
     const careerSettings = await SettingsModel.getByKey('career-preferences');
 
@@ -98,7 +106,9 @@ export class GPTService implements IGPTService {
 
     const companiesText = resumeExamples.map((example: any) => example.company).join(', ');
     const experienceText = resumeExamples.map((example: any) => `Компания: ${example.company}, Описание: ${example.experience}`).join('\n\n');
-    const specializationsText = specializations.join(', ');
+    const specializationsText = specializations.map((spec: SpecializationSetting) => `id: ${spec.id}, специализация: ${spec.name}`).join('\n\n');
+
+    const patternsText = await this.analyzeInterviewPatterns();
 
     const prompt = format(
       CHATGPT_CREATE_RESUMES_PROMPT,
@@ -109,13 +119,13 @@ export class GPTService implements IGPTService {
         contacts,
         experienceCount: resumeExamples.length,
         resumesCount: specializations.length,
-        vacancies: content,
+        patternsText,
       },
     );
 
-    const generatedResumes: GeneratedResume[] | undefined = await this.callGPT({
-      prompt, content, field: 'resumes', max_completion_tokens: 10000,
-    });
+    const generatedResumes = await this.callGPT({
+      prompt, field: 'resumes', max_completion_tokens: 10000,
+    }) as Resume[];
 
     if (!generatedResumes) {
       return [];
@@ -134,53 +144,20 @@ export class GPTService implements IGPTService {
     });
   }
 
-  private async callGPT<T>({
-    prompt, content, field, max_completion_tokens,
-  }: CallGptDto): Promise<T[] | undefined> {
-    try {
-      const response = await this.clinet.chat.completions.create({
-        model: 'gpt-4.1-mini',
-        messages: [
-          { role: 'system', content: prompt },
-          ...(content ? [{ role: 'user' as const, content }] : []),
-        ],
-        response_format: {
-          type: 'json_object',
-        },
-        ...(max_completion_tokens && { max_completion_tokens }),
-      });
+  async analyzeInterviewPatterns(): Promise<string> {
+    const vacancies = await VacancyApplicationModel.getRecentInterviews();
 
-      const result = response.choices[0].message?.content?.trim();
+    if (!vacancies.length) return '';
 
-      if (!result) {
-        return undefined;
-      }
+    const vacanciesText = vacancies.length
+      ? vacancies.map((v) => v.description).join('\n\n')
+      : '';
 
-      const parsedContent = JSON.parse(result);
+    const prompt = format(CHATGPT_ANALYZE_VACANCIES_PATTERNS, {
+      vacancies: vacanciesText,
+    });
 
-      if (
-        parsedContent
-      && typeof parsedContent === 'object'
-      && Array.isArray(parsedContent[field])
-      ) {
-        return parsedContent[field];
-      }
-
-      logger.warn(AppErrorName.CHATGPT_UNEXPECTED_RESPONSE_FORMAT, {
-        content: result,
-      });
-
-      return undefined;
-    } catch (err) {
-      const errorName = AppErrorName.CHATGPT_GENERATION_ERROR;
-
-      logger.error(errorName, err);
-
-      throw new AppException(
-        errorName,
-        { status: HttpStatus.BAD_REQUEST, cause: err },
-      );
-    }
+    return await this.callGPT({ prompt }) as string;
   }
 
   private static async prepareVacancyChunks(vacancies: Vacancy[]): Promise<string[]> {
@@ -217,11 +194,41 @@ export class GPTService implements IGPTService {
     return chunks;
   }
 
-  private static prepareResumeText(resumes?: Resume[]): string {
-    if (!resumes || resumes.length === 0) return '';
+  private async callGPT<T>({
+    prompt, content, field, max_completion_tokens,
+  }: CallGptDto): Promise<T[] | string> {
+    try {
+      const response = await this.clinet.chat.completions.create({
+        model: 'gpt-4.1-mini',
+        messages: [
+          { role: 'system', content: prompt },
+          ...(content ? [{ role: 'user' as const, content }] : []),
+        ],
+        ...(field && { response_format: { type: 'json_object' } }),
+        ...(max_completion_tokens && { max_completion_tokens }),
+      });
 
-    return resumes
-      .map((resume) => `Название: ${resume.title} Описание: ${resume.content}`)
-      .join('\n\n');
+      const result = response.choices[0].message?.content?.trim();
+
+      if (!result) {
+        throw new AppException(AppErrorName.CHATGPT_RESPONSE_EMPTY);
+      }
+
+      if (!field) return result;
+
+      const parsedContent = JSON.parse(result);
+
+      if (parsedContent && typeof parsedContent === 'object' && Array.isArray(parsedContent[field])) {
+        return parsedContent[field];
+      }
+
+      throw new AppException(AppErrorName.CHATGPT_UNEXPECTED_RESPONSE_FORMAT);
+    } catch (err) {
+      const errorName = AppErrorName.CHATGPT_GENERATION_ERROR;
+
+      logger.error(errorName, err);
+
+      throw new AppException(errorName, { status: HttpStatus.BAD_REQUEST, cause: err });
+    }
   }
 }

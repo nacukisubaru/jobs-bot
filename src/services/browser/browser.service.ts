@@ -1,5 +1,5 @@
 import {
-  chromium, BrowserContext, LaunchOptions, Page,
+  chromium, BrowserContext, Page,
 } from 'playwright';
 
 import { bot } from '../../bot/bot';
@@ -26,13 +26,13 @@ export class BrowserService {
     if (this.context) return this.context;
 
     try {
-      const options: LaunchOptions = {
-        headless: false,
+      this.context = await chromium.launchPersistentContext(this.profilePath, {
+        headless: true,
         executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        args: ['--start-maximized', '--disable-blink-features=AutomationControlled'],
-      };
-
-      this.context = await chromium.launchPersistentContext(this.profilePath, options);
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        args: ['--window-size=1920,1080', '--disable-blink-features=AutomationControlled'],
+        viewport: { width: 1920, height: 1080 },
+      });
 
       this.decorateContext();
 

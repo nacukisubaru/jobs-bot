@@ -5,6 +5,9 @@ export const PROFILE_PATH = './hh-profile';
 
 export const MAX_RETRY_JOB_APPLICATION_RUN_COUNT = 5;
 
+export const SEEN_VACANCIES_KEY = 'seen_vacancies';
+export const SEEN_VACANCIES_TTL = 60 * 60 * 24 * 30; // 30 дней
+
 export const TG_CHAT_ID = Number(process.env.TG_BOT_CHAT_ID);
 
 export const PAGE_PARSING_DELAY = Number(process.env.PAGE_PARSING_DELAY) || 5000;

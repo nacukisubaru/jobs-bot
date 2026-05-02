@@ -16,7 +16,7 @@ gpt оклимается, пока оно будет собирать
   // async generateResumes(content: string): Promise<GeneratedResume[]> {
   //   return [{
   //     profession: `Программист-${crypto.randomUUID()}`,
-  //     keywords: [React, Redux, TypeScript, JavaScript, react-hook-forms, Canvas, SVG, reselect, Lazy-loading, IntersectionObserver, Node.js, Nodemailer,     Preloader, Undo/Redo, QR-code.react, Svelte, REST API, axios, Git, Webpack, Babel, Responsive Design, UI/UX, ES6+, Frontend Architecture, Error handling, Jest, Testing, Performance Optimization, TypeScript Generics],
+  //     keywords: ['React', 'Redux', 'TypeScript', 'JavaScript', 'react-hook-forms', 'Canvas', 'SVG', 'reselect', 'Lazy-loading', 'IntersectionObserver', 'Node.js', 'Nodemailer', 'Preloader', 'Undo/Redo', 'QR-code.react', 'Svelte', 'REST API', 'axios', 'Git', 'Webpack', 'Babel', 'Responsive Design', 'UI/UX', 'ES6+', 'Frontend Architecture', 'Error handling', 'Jest', 'Testing', 'Performance Optimization', 'TypeScript Generics'],
   //     experience: [
   //       {
   //         company: 'Компания 1',

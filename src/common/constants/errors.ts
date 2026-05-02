@@ -9,6 +9,7 @@ export enum AppErrorName {
 
   CHATGPT_GENERATION_ERROR = 'chatgpt_generation_error',
   CHATGPT_UNEXPECTED_RESPONSE_FORMAT = 'chatgpt_unexpected_response_format',
+  CHATGPT_RESPONSE_EMPTY = 'chatgpt_response_empty',
 
   JOB_APPLICATION_VACANCIES_EMPTY_ERROR = 'job_application_vacancies_empty_error',
   JOB_APPLICATION_RESUMES_EMPTY_ERROR = 'job_application_vacancies_empty_error',
@@ -16,6 +17,7 @@ export enum AppErrorName {
   JOB_APPLICATION_VACANCIES_NOT_FILTRED_ERROR = 'job_application_vacancies_not_filtred_error',
   JOB_APPLICATION_APPLY_BTN_NOT_FOUND = 'job_application_apply_btn_not_found',
   JOB_APPLICATION_AUTO_APPLY_FAILED = 'job_application_auto_apply_failed',
+  VACANCY_APPLICATIONS_FETCH_ERROR = 'vacancy_applications_fetch_error',
 
   BROWSER_CONTEXT_NOT_FOUND = 'browser_context_not_found',
   BROWSER_CAPTCHA_DETECTED_ERROR = 'browser_captcha_detected_error',
