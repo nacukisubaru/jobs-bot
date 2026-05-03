@@ -29,3 +29,11 @@ export function truncateText(text: string, limit = 500) {
 
   return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd()}...`;
 }
+
+export function hasContactPattern(text: string): boolean {
+  const textWithoutUrls = text.replace(/https?:\/\/\S+/g, '');
+
+  return /(@\w+|(?:\+7|8)[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}|[\w.-]+@[\w.-]+\.\w+)/i.test(
+    textWithoutUrls,
+  );
+}

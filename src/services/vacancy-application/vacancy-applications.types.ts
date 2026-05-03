@@ -11,7 +11,6 @@ export const enum VacancyApplicationStatus {
   REJECTION = 'rejection',
   PENDING = 'pending',
   INTERVIEW = 'interview',
-  NONE = 'none',
 }
 
 export interface VacancyApplicationDocument extends Omit<VacancyApplication, 'resume'>, Document {
@@ -20,6 +19,7 @@ export interface VacancyApplicationDocument extends Omit<VacancyApplication, 're
   description: string;
   appliedResumes: string[];
   isArchived: boolean;
+  lastMessage: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,7 +27,6 @@ export interface VacancyApplicationDocument extends Omit<VacancyApplication, 're
 export interface IVacancyApplicationModel extends Model<VacancyApplicationDocument> {
   createApplication(
     vacancyApplication: VacancyApplication,
-    status: VacancyApplicationStatus,
     appliedResume: string
   ): Promise<void>;
   canApplyToVacancy(link: string): Promise<boolean>;
@@ -40,6 +39,5 @@ export interface IVacancyApplicationModel extends Model<VacancyApplicationDocume
 export interface SubmitApplyArgs {
   page: Page;
   vacancy: VacancyApplication;
-  currentStatus: VacancyApplicationStatus;
   appliedResume: string;
 }

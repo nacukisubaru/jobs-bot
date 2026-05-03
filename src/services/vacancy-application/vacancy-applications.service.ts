@@ -3,7 +3,7 @@ import { FormsAnswers, IGPTService } from '../chatgpt/chatgpt.types';
 
 import { IVacancyFetcher } from '../vacancy/vacancy.types';
 
-import { SubmitApplyArgs, VacancyApplication, VacancyApplicationStatus } from './vacancy-applications.types';
+import { SubmitApplyArgs, VacancyApplication } from './vacancy-applications.types';
 
 import { AppErrorName } from '../../common/constants/errors';
 import { logger } from '../../common/logger';
@@ -14,7 +14,6 @@ import { debugScreenshot, sleep, truncateText } from '../../common/utils/common'
 import { AppException } from '../../common/exceptions';
 
 import { VacancyApplicationModel } from './vacancy-applications.model';
-import { vacancyApplicationStatusMap } from './vacancy-applications.constants';
 
 import { SettingsModel } from '../../models/settings/settings.model';
 
@@ -92,16 +91,6 @@ export class VacancyApplicationService {
     try {
       await page.goto(link, { waitUntil: 'domcontentloaded' });
 
-      let currentStatus: VacancyApplicationStatus = VacancyApplicationStatus.NONE;
-
-      for (const [text, status] of vacancyApplicationStatusMap) {
-        const locator = page.getByText(text);
-
-        if (await locator.count() > 0) {
-          currentStatus = status;
-        }
-      }
-
       const responseButton = page.locator('[data-qa^="vacancy-response-link-top"]').first();
 
       await responseButton.waitFor({ state: 'visible', timeout: 15000 });
@@ -117,7 +106,7 @@ export class VacancyApplicationService {
       }
 
       if (redirected && vacancy.form) {
-        await VacancyApplicationService.fillForm(page, resumes, vacancy, currentStatus);
+        await VacancyApplicationService.fillForm(page, resumes, vacancy);
 
         return;
       }
@@ -137,7 +126,7 @@ export class VacancyApplicationService {
       const appliedResume = await VacancyApplicationService.selectResume(page, resumes);
 
       await VacancyApplicationService.submitApply({
-        page, vacancy, currentStatus, appliedResume,
+        page, vacancy, appliedResume,
       });
     } catch (err) {
       await debugScreenshot(page, 'apply-to-job');
@@ -203,7 +192,6 @@ export class VacancyApplicationService {
     page: Page,
     resumes: string[],
     vacancy: VacancyApplication,
-    currentStatus: VacancyApplicationStatus,
   ) {
     const { inputs, options } = vacancy.form as FormsAnswers;
 
@@ -240,12 +228,12 @@ export class VacancyApplicationService {
     await VacancyApplicationService.fillVacancyLetter(page, vacancyResponseLetterToggle, vacancy.letter);
 
     await VacancyApplicationService.submitApply({
-      page, vacancy, currentStatus, appliedResume,
+      page, vacancy, appliedResume,
     });
   }
 
   private static async submitApply({
-    page, vacancy, currentStatus, appliedResume,
+    page, vacancy, appliedResume,
   }: SubmitApplyArgs): Promise<void> {
     const responseModalButton = page.locator(
       '[data-qa="vacancy-response-submit-popup"]',
@@ -261,7 +249,7 @@ export class VacancyApplicationService {
     const status = response.status();
 
     if (status === 204 || status === 200) {
-      await VacancyApplicationModel.createApplication(vacancy, currentStatus, appliedResume);
+      await VacancyApplicationModel.createApplication(vacancy, appliedResume);
     } else {
       logger.warn(`Apply failed with status: ${status}`);
     }

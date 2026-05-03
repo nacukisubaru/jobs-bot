@@ -2,7 +2,7 @@ import { SpecializationSetting } from '../../models/settings/settings.types';
 
 import { Resume } from '../resume/resume.types';
 
-import { Vacancy } from '../vacancy/vacancy.types';
+import { Reply, Vacancy } from '../vacancy/vacancy.types';
 
 export interface GeneratedVacancyApplication {
   link: string,
@@ -31,4 +31,5 @@ export interface IGPTService {
   ): Promise<GeneratedVacancyApplication[]>;
   generateResumes(content: string): Promise<Resume[]>;
   analyzeInterviewPatterns(): Promise<string>;
+  generateChatReply(message: string): Promise<Reply>;
 }

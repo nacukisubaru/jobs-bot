@@ -13,10 +13,12 @@ import { BotMessageName } from '../../common/constants/bot';
 import { createScheduledTask } from '../../services/scheduler/scheduler-factory';
 import { AsyncScheduler } from '../../services/scheduler/scheduler.service';
 import { redisService } from '../../services/redis/redis.service';
+import { VacancyChatService } from '../../services/vacancy/vacancy.chat.service';
 
 let autoRepliesScheduler: AsyncScheduler;
 let applySavedVacanciesScheduler: AsyncScheduler;
 let autoCreateResumesScheduler: AsyncScheduler;
+let autoChattingByVacancies: AsyncScheduler;
 
 export function initAutoRepliesSchedulers(browser: BrowserService) {
   const context = browser.getContext();
@@ -24,8 +26,8 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   const gptService = new GPTService();
   const vacancyService = new VacancyService(context, redisService);
   const resumeService = new ResumeService(context, gptService);
-
   const vacancyApplicationService = new VacancyApplicationService(context, vacancyService, gptService);
+  const vacancyChatService = new VacancyChatService(context, gptService);
 
   autoRepliesScheduler = createScheduledTask(
     () => vacancyApplicationService.processNewVacancies(),
@@ -54,8 +56,18 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
     BotMessageName.AUTO_REPLIES_FAILED,
   );
 
+  autoChattingByVacancies = createScheduledTask(
+    () => vacancyChatService.processAllVacancies(),
+    AUTO_REPLIES_REPEAT_DELAY,
+    AUTO_REPLIES_RETRY_REPEAT_DELAY,
+    MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+    AppErrorName.JOB_APPLICATION_AUTO_APPLY_FAILED,
+    BotMessageName.AUTO_REPLIES_FAILED,
+  );
+
   const startSchedulers = async () => {
-    autoRepliesScheduler.start();
+    autoChattingByVacancies.start();
+    // autoRepliesScheduler.start();
     // autoCreateResumesScheduler.start();
     // applySavedVacanciesScheduler.start();
   };

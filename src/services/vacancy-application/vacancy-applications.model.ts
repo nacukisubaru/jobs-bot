@@ -3,7 +3,6 @@ import { Schema, model } from 'mongoose';
 import {
   IVacancyApplicationModel, VacancyApplication, VacancyApplicationDocument, VacancyApplicationStatus,
 } from './vacancy-applications.types';
-import { vacancyApplicationStatusMap } from './vacancy-applications.constants';
 
 import { AUTO_REPLY_INTERVAL_HOURS } from '../../common/constants/common';
 
@@ -16,6 +15,7 @@ const VacancyApplicationSchema = new Schema<VacancyApplicationDocument>({
   appliedResumes: { type: [String], default: [] },
   letter: { type: String, required: true },
   status: { type: String, required: true },
+  lastMessage: { type: String, default: '' },
   isArchived: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
@@ -29,8 +29,6 @@ VacancyApplicationSchema.statics.createApplication = async function (
 ) {
   const { link, resumes } = vacancyApplication;
 
-  const vacancyStatus = vacancyApplicationStatusMap.get(status) || VacancyApplicationStatus.NONE;
-
   const hasVacancy = await this.findOne({ link: vacancyApplication.link });
 
   const filtredResumes = resumes.filter((resume: string) => resume !== appliedResume);
@@ -40,7 +38,6 @@ VacancyApplicationSchema.statics.createApplication = async function (
       { link },
       {
         $set: {
-          status: vacancyStatus,
           isArchived,
           updatedAt: new Date(),
           resumes: filtredResumes,
@@ -58,7 +55,7 @@ VacancyApplicationSchema.statics.createApplication = async function (
     ...vacancyApplication,
     resumes: filtredResumes,
     appliedResumes: [appliedResume],
-    status: vacancyStatus,
+    status: VacancyApplicationStatus.PENDING,
     isArchived: false,
     createdAt: new Date(),
     updatedAt: new Date(),

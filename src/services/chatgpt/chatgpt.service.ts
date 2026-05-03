@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 
-import { Vacancy } from '../vacancy/vacancy.types';
+import { Reply, Vacancy } from '../vacancy/vacancy.types';
 import { Resume } from '../resume/resume.types';
 
 import {
@@ -12,6 +12,7 @@ import {
   CHATGPT_ASK_FORM_QUESTION_PROMPT,
   CHATGPT_CREATE_RESUMES_PROMPT,
   CHATGPT_MAX_VACANCY_PROMPT_TOKENS,
+  CHATGPT_REPLY_TO_CHAT,
   CHATGPT_VACANCY_FILTER_PROMPT,
 } from '../../common/constants/chatgpt';
 import { AppException } from '../../common/exceptions';
@@ -58,11 +59,11 @@ export class GPTService implements IGPTService {
     }
 
     for (const chunk of chunks) {
-      const vacancyApplicationsResponse = await this.callGPT<GeneratedVacancyApplication>({
+      const vacancyApplicationsResponse = await this.callGPT<GeneratedVacancyApplication[]>({
         prompt: prompt.build(),
         content: chunk,
         field: 'vacancies',
-      }) as GeneratedVacancyApplication[];
+      });
 
       if (vacancyApplicationsResponse) {
         vacancyApplications.push(...vacancyApplicationsResponse);
@@ -123,9 +124,9 @@ export class GPTService implements IGPTService {
       },
     );
 
-    const generatedResumes = await this.callGPT({
+    const generatedResumes: Resume[] = await this.callGPT({
       prompt, field: 'resumes', max_completion_tokens: 10000,
-    }) as Resume[];
+    });
 
     if (!generatedResumes) {
       return [];
@@ -157,7 +158,22 @@ export class GPTService implements IGPTService {
       vacancies: vacanciesText,
     });
 
-    return await this.callGPT({ prompt }) as string;
+    return this.callGPT({ prompt });
+  }
+
+  async generateChatReply(message: string): Promise<Reply> {
+    const careerSettings = await SettingsModel.getByKey('career-preferences');
+
+    const { fio, contacts, salary } = careerSettings.value;
+
+    const prompt = format(CHATGPT_REPLY_TO_CHAT, {
+      message,
+      fio,
+      contacts,
+      salary,
+    });
+
+    return this.callGPT({ prompt, field: 'reply' });
   }
 
   private static async prepareVacancyChunks(vacancies: Vacancy[]): Promise<string[]> {
@@ -194,9 +210,11 @@ export class GPTService implements IGPTService {
     return chunks;
   }
 
+  private async callGPT<T>(dto: CallGptDto & { field: string }): Promise<T>;
+  private async callGPT(dto: CallGptDto & { field?: undefined }): Promise<string>;
   private async callGPT<T>({
     prompt, content, field, max_completion_tokens,
-  }: CallGptDto): Promise<T[] | string> {
+  }: CallGptDto): Promise<T | string> {
     try {
       const response = await this.clinet.chat.completions.create({
         model: 'gpt-4.1-mini',
@@ -218,7 +236,7 @@ export class GPTService implements IGPTService {
 
       const parsedContent = JSON.parse(result);
 
-      if (parsedContent && typeof parsedContent === 'object' && Array.isArray(parsedContent[field])) {
+      if (parsedContent && typeof parsedContent === 'object') {
         return parsedContent[field];
       }
 
