@@ -1,59 +1,61 @@
-import { bot } from '../../bot/bot';
+import cron from 'node-cron';
 
-import { AUTO_REPLIES_RETRY_DELAY, TG_CHAT_ID } from '../../common/constants/common';
+import { bot } from '../../bot/bot';
+import { TG_CHAT_ID } from '../../common/constants/common';
 import { logger } from '../../common/logger';
+import { schedulerQueue } from './scheduler-queue.service';
+import { SchedulerOptions } from './scheduler.types';
 
 export class AsyncScheduler {
-  private timeoutHandle: NodeJS.Timeout | null = null;
+  private cronJob: cron.ScheduledTask | null = null;
 
-  private retryCount: number = 0;
+  private retryCount = 0;
 
-  private isRunning: boolean = false;
+  private retryTimeout: NodeJS.Timeout | null = null;
 
-  private isStopped: boolean = false;
+  private isStopped = false;
+
+  private taskName: string;
 
   constructor(
     private task: () => Promise<void>,
-    private delay: number,
-    private retryDelay: number = AUTO_REPLIES_RETRY_DELAY,
-    private maxRetryAttempts: number = 1,
-    private errorMessages: { bot: string, logger: string } | null = null,
-  ) {}
+    private cronExpression: string,
+    private retryDelay: number,
+    private maxRetryAttempts: number,
+    private options: SchedulerOptions = {},
+  ) {
+    console.log(task.name)
+    this.taskName = task.name;
+  }
 
   public start() {
     this.isStopped = false;
 
-    this.runTask();
+    this.cronJob = cron.schedule(this.cronExpression, () => {
+      if (this.isStopped) return;
+
+      logger.info(`[Scheduler] Cron сработал для "${this.taskName}"`);
+
+      schedulerQueue.enqueue(this.taskName, () => this.execute());
+    });
+
+    logger.info(`[Scheduler] "${this.taskName}" запущен (${this.cronExpression})`);
   }
 
-  public stop(cb: () => void, delay: number = 60000) {
+  public stop() {
     this.isStopped = true;
 
-    if (this.timeoutHandle) clearTimeout(this.timeoutHandle);
+    this.cronJob?.stop();
 
-    this.timeoutHandle = null;
+    this.cronJob = null;
 
-    if (!this.isRunning) {
-      cb();
+    if (this.retryTimeout) clearTimeout(this.retryTimeout);
 
-      return;
-    }
-
-    setTimeout(async () => {
-      if (!this.isRunning) {
-        cb();
-      }
-    }, delay);
+    logger.info(`[Scheduler] "${this.taskName}" остановлен`);
   }
 
-  public taskIsRunning() {
-    return this.isRunning;
-  }
-
-  private async runTask() {
+  private async execute(): Promise<void> {
     try {
-      this.isRunning = true;
-
       await this.task();
 
       this.retryCount = 0;
@@ -61,34 +63,32 @@ export class AsyncScheduler {
       if (this.retryCount < this.maxRetryAttempts) {
         this.retryCount++;
 
-        if (this.errorMessages) {
-          logger.error(
-            `${this.errorMessages.logger}
-            retry (${this.retryCount}/${this.maxRetryAttempts})`,
-            err,
-          );
+        this.notifyError(err);
 
-          bot.sendMessage(TG_CHAT_ID, `Повторная попытка №${this.retryCount} ${this.errorMessages.bot} ${err}`);
-        }
+        await new Promise<void>((resolve) => {
+          this.retryTimeout = setTimeout(() => {
+            schedulerQueue.enqueueRetry(this.taskName, () => this.execute());
 
-        this.scheduleNext(this.retryDelay);
+            resolve();
+          }, this.retryDelay);
+        });
       } else {
         this.retryCount = 0;
+
+        logger.error(`[Scheduler] "${this.taskName}" исчерпала все попытки`, err);
+
+        throw err;
       }
-
-      return;
-    } finally {
-      this.isRunning = false;
-    }
-
-    if (!this.isStopped) {
-      this.scheduleNext(this.delay);
     }
   }
 
-  private scheduleNext(ms: number) {
-    if (this.timeoutHandle) clearTimeout(this.timeoutHandle);
+  private notifyError(err: unknown) {
+    const msg = this.options.errorMessages;
 
-    this.timeoutHandle = setTimeout(() => this.runTask(), ms);
+    if (!msg) return;
+
+    logger.error(`${msg.logger} retry (${this.retryCount}/${this.maxRetryAttempts})`, err);
+
+    bot.sendMessage(TG_CHAT_ID, `Повторная попытка №${this.retryCount} ${msg.bot} ${err}`);
   }
 }

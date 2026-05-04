@@ -1,19 +1,22 @@
 import { VacancyApplicationService } from '../../services/vacancy-application/vacancy-applications.service';
 import { BrowserService } from '../../services/browser/browser.service';
 import { ResumeService } from '../../services/resume/resume.service';
-import { VacancyService } from '../../services/vacancy/vacancy.service';
 import { GPTService } from '../../services/chatgpt/chatgpt.service';
+import { redisService } from '../../services/redis/redis.service';
+
+import { VacancyService } from '../../services/vacancy/vacancy.service';
+import { VacancyChatService } from '../../services/vacancy/vacancy.chat.service';
+
+import { AsyncScheduler } from '../../services/scheduler/scheduler.service';
+import { createScheduledTask } from '../../services/scheduler/scheduler-factory';
 
 import {
   AUTO_REPLIES_RETRY_REPEAT_DELAY,
-  AUTO_REPLIES_DELAY, AUTO_REPLIES_REPEAT_DELAY, AUTO_REPLIES_RETRY_DELAY, MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+  AUTO_REPLIES_RETRY_DELAY, MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+  CRON,
 } from '../../common/constants/common';
 import { AppErrorName } from '../../common/constants/errors';
 import { BotMessageName } from '../../common/constants/bot';
-import { createScheduledTask } from '../../services/scheduler/scheduler-factory';
-import { AsyncScheduler } from '../../services/scheduler/scheduler.service';
-import { redisService } from '../../services/redis/redis.service';
-import { VacancyChatService } from '../../services/vacancy/vacancy.chat.service';
 
 let autoRepliesScheduler: AsyncScheduler;
 let applySavedVacanciesScheduler: AsyncScheduler;
@@ -29,9 +32,14 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   const vacancyApplicationService = new VacancyApplicationService(context, vacancyService, gptService);
   const vacancyChatService = new VacancyChatService(context, gptService);
 
+  const vacanciesReplies = () => vacancyApplicationService.processNewVacancies();
+  const savedVacancies = () => vacancyApplicationService.processSavedVacancies();
+  const createResumes = () => resumeService.createResumes();
+  const chattingByVacancies = () => vacancyChatService.processAllVacancies();
+
   autoRepliesScheduler = createScheduledTask(
-    () => vacancyApplicationService.processNewVacancies(),
-    AUTO_REPLIES_DELAY,
+    vacanciesReplies,
+    CRON.EVERY_HOUR,
     AUTO_REPLIES_RETRY_DELAY,
     MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
     AppErrorName.JOB_APPLICATION_AUTO_APPLY_FAILED,
@@ -39,8 +47,8 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   );
 
   applySavedVacanciesScheduler = createScheduledTask(
-    () => vacancyApplicationService.processSavedVacancies(),
-    AUTO_REPLIES_REPEAT_DELAY,
+    savedVacancies,
+    CRON.EVERY_3_HOURS,
     AUTO_REPLIES_RETRY_REPEAT_DELAY,
     MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
     AppErrorName.JOB_APPLICATION_AUTO_APPLY_FAILED,
@@ -48,8 +56,8 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   );
 
   autoCreateResumesScheduler = createScheduledTask(
-    () => resumeService.createResumes(),
-    AUTO_REPLIES_REPEAT_DELAY,
+    createResumes,
+    CRON.EVERY_MONDAY_AT_9,
     AUTO_REPLIES_RETRY_REPEAT_DELAY,
     MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
     AppErrorName.JOB_APPLICATION_AUTO_APPLY_FAILED,
@@ -57,8 +65,8 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   );
 
   autoChattingByVacancies = createScheduledTask(
-    () => vacancyChatService.processAllVacancies(),
-    AUTO_REPLIES_REPEAT_DELAY,
+    chattingByVacancies,
+    CRON.EVERY_3_HOURS,
     AUTO_REPLIES_RETRY_REPEAT_DELAY,
     MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
     AppErrorName.JOB_APPLICATION_AUTO_APPLY_FAILED,
@@ -66,8 +74,8 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   );
 
   const startSchedulers = async () => {
-    autoChattingByVacancies.start();
-    // autoRepliesScheduler.start();
+    autoRepliesScheduler.start();
+    // autoChattingByVacancies.start();
     // autoCreateResumesScheduler.start();
     // applySavedVacanciesScheduler.start();
   };

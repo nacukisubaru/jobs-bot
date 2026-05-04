@@ -12,6 +12,13 @@ export const TG_CHAT_ID = Number(process.env.TG_BOT_CHAT_ID);
 
 export const PAGE_PARSING_DELAY = Number(process.env.PAGE_PARSING_DELAY) || 5000;
 
+export const CRON = {
+  EVERY_HOUR: '0 * * * *',
+  EVERY_3_HOURS: '0 */3 * * *',
+  EVERY_DAY_AT_9: '0 9 * * *',
+  EVERY_MONDAY_AT_9: '0 9 * * 1',
+} as const;
+
 export const AUTO_REPLIES_DELAY = process.env.AUTO_REPLIES_DELAY
   ? minutes(Number(process.env.AUTO_REPLIES_DELAY))
   : hours(1);

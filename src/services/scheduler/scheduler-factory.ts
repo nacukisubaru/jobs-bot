@@ -2,22 +2,19 @@ import { AsyncScheduler } from './scheduler.service';
 
 export function createScheduledTask(
   task: () => Promise<void>,
-  delay: number,
+  cronExpression: string,
   retryDelay: number,
-  maxRuns: number,
+  maxRetryAttempts: number,
   loggerError: string,
   botMessageOnFail: string,
 ) {
   return new AsyncScheduler(
-    async () => {
-      await task();
-    },
-    delay,
+    task,
+    cronExpression,
     retryDelay,
-    maxRuns,
+    maxRetryAttempts,
     {
-      logger: loggerError,
-      bot: botMessageOnFail,
+      errorMessages: { logger: loggerError, bot: botMessageOnFail },
     },
   );
 }
