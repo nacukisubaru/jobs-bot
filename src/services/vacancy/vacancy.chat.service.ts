@@ -2,21 +2,20 @@ import {
   BrowserContext, Frame, Locator, Page,
 } from 'playwright';
 import { HydratedDocument } from 'mongoose';
+
 import { GPTService } from '../chatgpt/chatgpt.service';
+
 import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
 import { VacancyApplicationDocument, VacancyApplicationStatus } from '../vacancy-application/vacancy-applications.types';
+
 import { debugScreenshot, hasContactPattern, sleep } from '../../common/utils/common';
 import { logger } from '../../common/logger';
-import { bot } from '../../bot/bot';
 import { TG_CHAT_ID } from '../../common/constants/common';
 import { AppException } from '../../common/exceptions';
-import { IVacancyChatService } from './vacancy.types';
 
-interface ChatMessage {
-  text: string;
-  author: 'me' | 'hr';
-  timestamp: string;
-}
+import { bot } from '../../bot/bot';
+
+import { ChatMessage, IVacancyChatService } from './vacancy.types';
 
 export class VacancyChatService implements IVacancyChatService {
   constructor(
@@ -46,6 +45,7 @@ export class VacancyChatService implements IVacancyChatService {
       await page.waitForSelector('[data-qa="negotiations-item"]');
 
       const vacancyCards = page.locator('[data-qa="negotiations-item"]');
+
       const count = await vacancyCards.count();
 
       let chatFrame;

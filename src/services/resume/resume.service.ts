@@ -6,6 +6,13 @@ import { ResumeModel } from './resume.model';
 import { GPTService } from '../chatgpt/chatgpt.service';
 
 import { CheckboxToggler } from '../../common/utils/checkbox-toggler';
+import { AppErrorName } from '../../common/constants/errors';
+import { AppException } from '../../common/exceptions';
+import { logger } from '../../common/logger';
+import { debugScreenshot } from '../../common/utils/common';
+import { HH_URL } from '../../common/constants/common';
+
+import { SettingsModel } from '../../models/settings/settings.model';
 
 export class ResumeService implements IResumeService {
   constructor(
@@ -18,12 +25,27 @@ export class ResumeService implements IResumeService {
 
     console.dir(generatedResumes, { depth: null, colors: true });
 
-    await ResumeModel.deleteAll();
+    try {
+      await this.deleteAllResumes();
 
-    for (const resume of generatedResumes) {
-      await this.createResume(resume);
+      for (const resume of generatedResumes) {
+        await this.createResume(resume);
+        await ResumeModel.createResume(resume);
+      }
 
-      await ResumeModel.createResume(resume);
+      await this.editResumes();
+    } catch (error: unknown) {
+      if (
+        error instanceof AppException
+      && (
+        error.message === AppErrorName.BROWSER_AUTHORIZATION_IS_EXPIRED_ERROR
+        || error.message === AppErrorName.BROWSER_CAPTCHA_DETECTED_ERROR
+      )
+      ) {
+        throw error;
+      }
+
+      logger.error('Resume processing error, skipping:', error);
     }
   }
 
@@ -214,6 +236,44 @@ export class ResumeService implements IResumeService {
     await nextScreen.click();
   }
 
+  private async editResumes() {
+    const careerSettings = await SettingsModel.getByKey('career-preferences');
+
+    const { aboutMe } = careerSettings.value;
+
+    if (!aboutMe) {
+      throw new AppException('RESUME_EDIT_ABOUT_ME_EMPTY');
+    }
+
+    const links = await this.collectResumeLinks();
+
+    for (const link of links) {
+      const page: Page = await this.browserContext.newPage();
+
+      await page.goto(`${HH_URL}${link}`);
+
+      await ResumeService.fillAboutMe(page, aboutMe);
+    }
+  }
+
+  private async deleteAllResumes() {
+    const links = await this.collectResumeLinks();
+
+    for (const link of links) {
+      const page: Page = await this.browserContext.newPage();
+
+      await page.goto(`${HH_URL}${link}`);
+
+      await page.waitForSelector('[data-qa="resume-delete"]');
+      await page.click('[data-qa="resume-delete"]');
+
+      await page.waitForSelector('[data-qa="resume-delete-confirm"]');
+      await page.click('[data-qa="resume-delete-confirm"]');
+    }
+
+    await ResumeModel.deleteAll();
+  }
+
   private static async fillExperienceForm(page: Page, exp: Experience) {
     const { start, end } = exp.periods ?? [];
 
@@ -304,5 +364,40 @@ export class ResumeService implements IResumeService {
       )
       .first()
       .fill(exp.description ?? '');
+  }
+
+  private static async fillAboutMe(page: Page, text: string) {
+    try {
+      const aboutMeBtn = page.locator('[data-qa="suitable-vacancies-suggest-item-skills"]');
+
+      await aboutMeBtn.waitFor();
+      await aboutMeBtn.click();
+
+      const editor = page.locator('[data-qa="resume-editor-about"]');
+
+      await editor.fill(text);
+
+      const btn = page.locator('button[data-qa="resume-partial-edit-save"]');
+
+      await btn.click();
+    } catch {
+      debugScreenshot(page, 'edit-resume');
+    }
+  }
+
+  private async collectResumeLinks(): Promise<string[]> {
+    const page: Page = await this.browserContext.newPage();
+
+    await page.goto('https://hh.ru/applicant/resumes');
+    await page.waitForSelector('[data-qa^="resume-card-link-"]', { timeout: 15000 });
+
+    const links = await page.$$eval(
+      '[data-qa^="resume-card-link-"]',
+      (cards) => cards.map((card) => card.getAttribute('href') ?? ''),
+    );
+
+    await page.close();
+
+    return links.filter(Boolean);
   }
 }

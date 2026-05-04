@@ -19,6 +19,7 @@ export enum AppErrorName {
   JOB_APPLICATION_AUTO_APPLY_FAILED = 'job_application_auto_apply_failed',
   VACANCY_APPLICATIONS_FETCH_ERROR = 'vacancy_applications_fetch_error',
 
+  BROWSER_NETWORK_ERROR = 'browser_network_error',
   BROWSER_CONTEXT_NOT_FOUND = 'browser_context_not_found',
   BROWSER_CAPTCHA_DETECTED_ERROR = 'browser_captcha_detected_error',
   BROWSER_RUN_ERROR = 'browser_run_error',

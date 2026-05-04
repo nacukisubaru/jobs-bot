@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 
 import { Reply, Vacancy } from '../vacancy/vacancy.types';
+
 import { Resume } from '../resume/resume.types';
 
 import {

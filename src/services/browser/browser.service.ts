@@ -74,7 +74,29 @@ export class BrowserService {
         url: Parameters<Page['goto']>[0],
         options?: Parameters<Page['goto']>[1],
       ) => {
-        const result = await originalGoto(url, options);
+        let result;
+
+        try {
+          result = await originalGoto(url, options);
+        } catch (error) {
+          const message = error instanceof Error ? error.message.toLowerCase() : '';
+
+          const isNetworkError = [
+            'net::err_internet_disconnected',
+            'net::err_network_changed',
+            'net::err_connection_refused',
+            'net::err_connection_timed_out',
+            'net::err_name_not_resolved',
+            'econnrefused',
+            'enotfound',
+            'etimedout',
+            'socket hang up',
+          ].some((pattern) => message.includes(pattern));
+
+          if (isNetworkError) {
+            throw new AppException(AppErrorName.BROWSER_NETWORK_ERROR);
+          }
+        }
 
         const isCaptcha = page.url().includes('captcha')
           || (await page.locator('iframe[src*="captcha"]').count()) > 0

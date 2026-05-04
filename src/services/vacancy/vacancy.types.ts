@@ -25,3 +25,9 @@ export interface Reply {
   company?: string,
   messageToHR: string,
 }
+
+export interface ChatMessage {
+  text: string;
+  author: 'me' | 'hr';
+  timestamp: string;
+}
