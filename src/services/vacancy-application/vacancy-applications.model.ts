@@ -24,9 +24,7 @@ const VacancyApplicationSchema = new Schema<VacancyApplicationDocument>({
 
 VacancyApplicationSchema.statics.createApplication = async function (
   vacancyApplication: VacancyApplication,
-  status: VacancyApplicationStatus,
   appliedResume: string,
-  isArchived = false,
 ) {
   const { link, resumes } = vacancyApplication;
 
@@ -39,7 +37,6 @@ VacancyApplicationSchema.statics.createApplication = async function (
       { link },
       {
         $set: {
-          isArchived,
           updatedAt: new Date(),
           resumes: filtredResumes,
         },
@@ -92,17 +89,16 @@ VacancyApplicationSchema.statics.getActualVacancyApplications = async function (
   const vacancies = await this.find({
     resumes: { $exists: true, $not: { $size: 0 } },
     isArchived: false,
-  }).lean();
-
-  return vacancies;
-};
-
-VacancyApplicationSchema.statics.getVacanciesByStatus = async function (
-  status: VacancyApplicationStatus,
-): Promise<VacancyApplication[]> {
-  const vacancies = await this.find({
-    isArchived: false,
-    status,
+    status: { $ne: VacancyApplicationStatus.INTERVIEW },
+    $or: [
+      { status: VacancyApplicationStatus.REJECTION },
+      {
+        status: { $ne: VacancyApplicationStatus.REJECTION },
+        updatedAt: {
+          $lt: new Date(Date.now() - AUTO_REPLY_INTERVAL_HOURS),
+        },
+      },
+    ],
   }).lean();
 
   return vacancies;

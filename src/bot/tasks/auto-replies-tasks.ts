@@ -41,7 +41,7 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
 
   autoRepliesScheduler = createScheduledTask(
     vacanciesReplies,
-    CRON.EVERY_3_HOURS,
+    CRON.EVERY_4_HOURS,
     AUTO_REPLIES_RETRY_DELAY,
     MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
     AppErrorName.JOB_APPLICATION_AUTO_APPLY_FAILED,
@@ -50,7 +50,7 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
 
   applySavedVacanciesScheduler = createScheduledTask(
     savedVacancies,
-    CRON.EVERY_3_HOURS,
+    CRON.EVERY_HOUR,
     AUTO_REPLIES_RETRY_REPEAT_DELAY,
     MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
     AppErrorName.JOB_APPLICATION_AUTO_APPLY_FAILED,
@@ -76,7 +76,7 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   );
 
   const startSchedulers = async () => {
-    resumeBooster.init();
+    //resumeBooster.init();
     // autoRepliesScheduler.start();
     // autoChattingByVacancies.start();
     // autoCreateResumesScheduler.start();

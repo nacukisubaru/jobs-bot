@@ -53,7 +53,7 @@ export class VacancyApplicationService {
         keywords,
       );
 
-      await this.applyToJobs(generatedApplications.flatMap((application) => {
+      const vacancyApplications = generatedApplications.flatMap((application) => {
         const vacancyData = vacanciesMap.get(application.link);
 
         if (!vacancyData) return [];
@@ -63,7 +63,13 @@ export class VacancyApplicationService {
           ...application,
           resumes: resumes.map((resume) => resume.profession),
         }];
-      }) as VacancyApplication[]); // todo поправить типизацию
+      }) as VacancyApplication[];
+
+      for (const vacancyApplication of vacancyApplications) {
+        if (!await VacancyApplicationModel.isAlreadyApplied(vacancyApplication.link)) {
+          await this.applyToJob(vacancyApplication);
+        }
+      }
 
       await this.vacancyFetcher.markVacancySeen([...vacanciesMap.keys()]);
     }
@@ -72,14 +78,8 @@ export class VacancyApplicationService {
   public async processSavedVacancies() {
     const vacancyApplications = await VacancyApplicationModel.getActualVacancyApplications();
 
-    this.applyToJobs(vacancyApplications);
-  }
-
-  private async applyToJobs(vacancyApplications: VacancyApplication[]) {
     for (const vacancyApplication of vacancyApplications) {
-      if (!await VacancyApplicationModel.isAlreadyApplied(vacancyApplication.link)) {
-        await this.applyToJob(vacancyApplication);
-      }
+      await this.applyToJob(vacancyApplication);
     }
   }
 
@@ -90,6 +90,22 @@ export class VacancyApplicationService {
 
     try {
       await page.goto(link, { waitUntil: 'domcontentloaded' });
+
+      const archiveText = page.locator('text="Вакансия в архиве"');
+
+      if (await archiveText.count() > 0) {
+        await VacancyApplicationModel.updateOne(
+          { link },
+          {
+            $set: {
+              isArchived: true,
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        return;
+      }
 
       const responseButton = page.locator('[data-qa^="vacancy-response-link-top"]').first();
 
@@ -178,7 +194,7 @@ export class VacancyApplicationService {
     if (addCoverLetterBtn) {
       await addCoverLetter.click();
     }
-
+    // на формах почему то не заполняет
     const vacancyLetterInput = page.locator('[data-qa="vacancy-response-popup-form-letter-input"]');
 
     await vacancyLetterInput.waitFor({ state: 'visible' });

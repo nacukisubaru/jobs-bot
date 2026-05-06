@@ -33,7 +33,6 @@ export interface IVacancyApplicationModel extends Model<VacancyApplicationDocume
   canApplyToVacancy(link: string): Promise<boolean>;
   getActualVacancyApplications: () => Promise<VacancyApplication[]>;
   isAlreadyApplied(link: string): Promise<boolean>;
-  getVacanciesByStatus(status: VacancyApplicationStatus): Promise<VacancyApplication[]>;
   getRecentInterviews(): Promise<VacancyApplication[]>;
 }
 

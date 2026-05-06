@@ -3,6 +3,7 @@
     "auth": "tsx ./src/auth-script.ts",
     "bot": "tsx ./src/bot/main.ts",
     "app": "tsx ./src/app.ts",
+    "seeds": "tsx ./src/seeds/settings.ts",
     "server": "node server.js"
   },
   "dependencies": {
