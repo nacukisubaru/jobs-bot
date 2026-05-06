@@ -17,6 +17,7 @@ import {
 } from '../../common/constants/common';
 import { AppErrorName } from '../../common/constants/errors';
 import { BotMessageName } from '../../common/constants/bot';
+import { ResumeBoostScheduler } from '../../services/resume/resume-boost.scheduler';
 
 let autoRepliesScheduler: AsyncScheduler;
 let applySavedVacanciesScheduler: AsyncScheduler;
@@ -31,6 +32,7 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   const resumeService = new ResumeService(context, gptService);
   const vacancyApplicationService = new VacancyApplicationService(context, vacancyService, gptService);
   const vacancyChatService = new VacancyChatService(context, gptService);
+  const resumeBooster = new ResumeBoostScheduler(context);
 
   const vacanciesReplies = () => vacancyApplicationService.processNewVacancies();
   const savedVacancies = () => vacancyApplicationService.processSavedVacancies();
@@ -74,7 +76,7 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   );
 
   const startSchedulers = async () => {
-    await chattingByVacancies();
+    resumeBooster.init();
     // autoRepliesScheduler.start();
     // autoChattingByVacancies.start();
     // autoCreateResumesScheduler.start();

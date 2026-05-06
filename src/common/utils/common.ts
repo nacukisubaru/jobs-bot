@@ -37,3 +37,15 @@ export function hasContactPattern(text: string): boolean {
     textWithoutUrls,
   );
 }
+
+export function parseTime(text: string): string | null {
+  const TIME_PATTERN = /\b(\d{1,2}:\d{2})\b/;
+
+  return text.match(TIME_PATTERN)?.[1] ?? null;
+}
+
+export function timeToCron(time: string): string {
+  const [hours, minutes] = time.split(':');
+
+  return `${minutes} ${hours} * * *`;
+}

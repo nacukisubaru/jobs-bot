@@ -24,7 +24,6 @@ export class AsyncScheduler {
     private maxRetryAttempts: number,
     private options: SchedulerOptions = {},
   ) {
-    console.log(task.name)
     this.taskName = task.name;
   }
 
@@ -52,6 +51,10 @@ export class AsyncScheduler {
     if (this.retryTimeout) clearTimeout(this.retryTimeout);
 
     logger.info(`[Scheduler] "${this.taskName}" остановлен`);
+  }
+
+  public getCronExpression() {
+    return this.cronExpression;
   }
 
   private async execute(): Promise<void> {
