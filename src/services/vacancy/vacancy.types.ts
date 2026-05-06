@@ -12,7 +12,7 @@ export interface IVacancyFetcher {
 }
 
 export interface IVacancyChatService {
-  processAllVacancies(): Promise<void>;
+  processChats(): Promise<void>;
 }
 
 export type FormQuestion =

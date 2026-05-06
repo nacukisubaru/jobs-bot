@@ -27,7 +27,7 @@ export class BrowserService {
 
     try {
       this.context = await chromium.launchPersistentContext(this.profilePath, {
-        headless: true,
+        headless: false,
         executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         args: ['--window-size=1920,1080', '--disable-blink-features=AutomationControlled'],
@@ -74,50 +74,49 @@ export class BrowserService {
         url: Parameters<Page['goto']>[0],
         options?: Parameters<Page['goto']>[1],
       ) => {
-        let result;
+        const RETRY_COUNT = 5;
+        const RETRY_DELAY_MS = 2000;
 
-        try {
-          result = await originalGoto(url, options);
-        } catch (error) {
-          const message = error instanceof Error ? error.message.toLowerCase() : '';
+        for (let attempt = 1; attempt <= RETRY_COUNT; attempt++) {
+          try {
+            const result = await originalGoto(url, {
+              waitUntil: 'domcontentloaded',
+              timeout: 30000,
+              ...options,
+            });
 
-          const isNetworkError = [
-            'net::err_internet_disconnected',
-            'net::err_network_changed',
-            'net::err_connection_refused',
-            'net::err_connection_timed_out',
-            'net::err_name_not_resolved',
-            'econnrefused',
-            'enotfound',
-            'etimedout',
-            'socket hang up',
-          ].some((pattern) => message.includes(pattern));
+            const isCaptcha = page.url().includes('captcha')
+            || (await page.locator('iframe[src*="captcha"]').count()) > 0
+            || (await page.locator('input[name*="captcha"]').count()) > 0
+            || (await page.locator('input[id*="captcha"]').count()) > 0;
 
-          if (isNetworkError) {
-            throw new AppException(AppErrorName.BROWSER_NETWORK_ERROR);
+            if (isCaptcha) {
+              bot.sendMessage(TG_CHAT_ID, BotMessageName.CAPTCHA_DETECTED);
+
+              throw new AppException(AppErrorName.BROWSER_CAPTCHA_DETECTED_ERROR);
+            }
+
+            if (!(await this.isAuth())) {
+              bot.sendMessage(TG_CHAT_ID, BotMessageName.AUTHORIZATION_IS_EXPIRED);
+
+              throw new AppException(AppErrorName.BROWSER_AUTHORIZATION_IS_EXPIRED_ERROR);
+            }
+
+            return result;
+          } catch (error) {
+            if (error instanceof AppException) {
+              throw error;
+            }
+
+            console.warn(`[BrowserService] goto attempt ${attempt}/${RETRY_COUNT} failed: ${error}`);
+
+            if (attempt < RETRY_COUNT) {
+              await page.waitForTimeout(RETRY_DELAY_MS * attempt);
+            }
           }
         }
 
-        const isCaptcha = page.url().includes('captcha')
-          || (await page.locator('iframe[src*="captcha"]').count()) > 0
-          || (await page.locator('input[name*="captcha"]').count()) > 0
-          || (await page.locator('input[id*="captcha"]').count()) > 0;
-
-        const chatId = TG_CHAT_ID;
-
-        if (isCaptcha) {
-          bot.sendMessage(chatId, BotMessageName.CAPTCHA_DETECTED);
-
-          throw new AppException(AppErrorName.BROWSER_CAPTCHA_DETECTED_ERROR);
-        }
-
-        if (!this.isAuth()) {
-          bot.sendMessage(chatId, BotMessageName.AUTHORIZATION_IS_EXPIRED);
-
-          throw new AppException(AppErrorName.BROWSER_AUTHORIZATION_IS_EXPIRED_ERROR);
-        }
-
-        return result;
+        throw new AppException(AppErrorName.BROWSER_NETWORK_ERROR);
       };
 
       Object.defineProperty(page, 'goto', {

@@ -35,11 +35,11 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   const vacanciesReplies = () => vacancyApplicationService.processNewVacancies();
   const savedVacancies = () => vacancyApplicationService.processSavedVacancies();
   const createResumes = () => resumeService.createResumes();
-  const chattingByVacancies = () => vacancyChatService.processAllVacancies();
+  const chattingByVacancies = () => vacancyChatService.processChats();
 
   autoRepliesScheduler = createScheduledTask(
     vacanciesReplies,
-    CRON.EVERY_HOUR,
+    CRON.EVERY_3_HOURS,
     AUTO_REPLIES_RETRY_DELAY,
     MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
     AppErrorName.JOB_APPLICATION_AUTO_APPLY_FAILED,
@@ -66,7 +66,7 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
 
   autoChattingByVacancies = createScheduledTask(
     chattingByVacancies,
-    CRON.EVERY_3_HOURS,
+    CRON.EVERY_HOUR,
     AUTO_REPLIES_RETRY_REPEAT_DELAY,
     MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
     AppErrorName.JOB_APPLICATION_AUTO_APPLY_FAILED,
@@ -74,7 +74,8 @@ export function initAutoRepliesSchedulers(browser: BrowserService) {
   );
 
   const startSchedulers = async () => {
-    autoRepliesScheduler.start();
+    await chattingByVacancies();
+    // autoRepliesScheduler.start();
     // autoChattingByVacancies.start();
     // autoCreateResumesScheduler.start();
     // applySavedVacanciesScheduler.start();

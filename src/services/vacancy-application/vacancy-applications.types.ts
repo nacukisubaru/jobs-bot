@@ -17,6 +17,7 @@ export interface VacancyApplicationDocument extends Omit<VacancyApplication, 're
   status: VacancyApplicationStatus;
   resumes: string[];
   description: string;
+  type: 'vacancy' | 'chat',
   appliedResumes: string[];
   isArchived: boolean;
   lastMessage: string;

@@ -1,5 +1,5 @@
 import {
-  BrowserContext, Frame, Locator, Page,
+  BrowserContext, Page,
 } from 'playwright';
 import { HydratedDocument } from 'mongoose';
 
@@ -8,7 +8,7 @@ import { GPTService } from '../chatgpt/chatgpt.service';
 import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
 import { VacancyApplicationDocument, VacancyApplicationStatus } from '../vacancy-application/vacancy-applications.types';
 
-import { debugScreenshot, hasContactPattern, sleep } from '../../common/utils/common';
+import { hasContactPattern, sleep } from '../../common/utils/common';
 import { logger } from '../../common/logger';
 import { TG_CHAT_ID } from '../../common/constants/common';
 import { AppException } from '../../common/exceptions';
@@ -23,90 +23,153 @@ export class VacancyChatService implements IVacancyChatService {
     private gptService: GPTService,
   ) {}
 
-  async processAllVacancies(): Promise<void> {
-    let hasNextPage = true;
-
+  public async processChats(): Promise<void> {
     const page: Page = await this.browserContext.newPage();
 
-    while (hasNextPage) {
-      await this.processCurrentPageVacancies(page);
-
-      hasNextPage = await VacancyChatService.goToNextPage(page);
-    }
-  }
-
-  private async processCurrentPageVacancies(page: Page): Promise<void> {
     try {
-      await page.goto('https://hh.ru/applicant/negotiations?filter=all&state=', {
+      await page.goto('https://hh.ru/chat', {
         waitUntil: 'domcontentloaded',
         timeout: 120000,
       });
 
-      await page.waitForSelector('[data-qa="negotiations-item"]');
+      const chatExists = await page.$('[data-qa^="chatik-open-chat-"]');
 
-      const vacancyCards = page.locator('[data-qa="negotiations-item"]');
+      if (!chatExists) {
+        await page.close();
 
-      const count = await vacancyCards.count();
-
-      let chatFrame;
-
-      for (let i = 0; i < count; i++) {
-        const card = vacancyCards.nth(i);
-
-        // Получаем ссылку на вакансию
-        const vacancyHref = await card
-          .locator('a:has([data-qa="negotiations-item-vacancy"])')
-          .getAttribute('href');
-
-        const vacancyUrl = vacancyHref ? `https://hh.ru${vacancyHref.split('?')[0]}` : null;
-
-        if (!vacancyUrl) continue;
-
-        const vacancy = await VacancyApplicationModel.findOne({ link: vacancyUrl });
-
-        if (!vacancy) continue;
-
-        // Обновляем статус вакансии по тегу карточки
-        const status = await VacancyChatService.getCardStatus(card);
-
-        if (status) {
-          vacancy.status = status;
-          vacancy.updatedAt = new Date();
-
-          vacancy.save();
-        }
-
-        if (status === VacancyApplicationStatus.REJECTION) continue;
-
-        const chatButton = card.locator('[data-qa="open_chat"]');
-        const hasChatButton = await chatButton.count();
-
-        if (hasChatButton === 0) {
-          continue;
-        }
-
-        await chatButton.click();
-
-        await sleep(20000);
-
-        if (!chatFrame) {
-          chatFrame = await VacancyChatService.getChatFrame(page);
-
-          if (!chatFrame) {
-            throw new AppException('CHAT_SERVICE_FRAME_NOT_FOUND_ERROR');
-          }
-        }
-
-        await this.handleChat(chatFrame, vacancy);
-
-        await page.waitForSelector('[data-qa="negotiations-item"]');
+        return;
       }
-    } catch (err) {
-      debugScreenshot(page, 'chat-service');
 
+      await VacancyChatService.ensureUnreadFilterActive(page);
+
+      await page.waitForSelector('[data-qa^="chatik-open-chat-"]');
+
+      const chatLinks = await page.$$eval(
+        '[data-qa^="chatik-open-chat-"]',
+        (els) => els.map((el) => (el as HTMLAnchorElement).href),
+      );
+
+      logger.info(`Collected ${chatLinks.length} unread chat links`);
+
+      for (const chatUrl of chatLinks) {
+        const openedPage = await this.processChatPage(chatUrl);
+
+        await openedPage.close();
+      }
+
+      await page.close();
+    } catch (err) {
       logger.error('CHAT_SERVICE_ERROR', err);
 
       throw new AppException('CHAT_SERVICE_ERROR', { cause: err });
+    }
+  }
+
+  private async processChatPage(chatUrl: string): Promise<Page> {
+    const page: Page = await this.browserContext.newPage();
+
+    await page.goto(chatUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: 120000,
+    });
+
+    await page.waitForSelector('[data-qa^="chatik-chat-message-"]');
+
+    const vacancyUrl = await VacancyChatService.extractVacancyUrlFromChatPage(page);
+
+    let vacancy: HydratedDocument<VacancyApplicationDocument> | null = null;
+
+    if (vacancyUrl) {
+      vacancy = await VacancyApplicationModel.findOne({ link: vacancyUrl });
+    }
+
+    if (!vacancy) {
+      vacancy = await VacancyApplicationModel.findOne({ chatLink: chatUrl });
+
+      if (!vacancy) {
+        vacancy = new VacancyApplicationModel({
+          link: chatUrl,
+          type: 'chat',
+          status: VacancyApplicationStatus.PENDING,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+        await vacancy.save();
+      }
+    }
+
+    const status = await VacancyChatService.getChatStatus(page, chatUrl);
+
+    if (status) {
+      vacancy.status = status;
+      vacancy.updatedAt = new Date();
+
+      await vacancy.save();
+    }
+
+    if (vacancy.status === VacancyApplicationStatus.REJECTION) return page;
+
+    const input = page.locator('[data-qa="chatik-new-message-text"]');
+
+    if (!await input.count()) return page;
+
+    await this.handleChat(page, vacancy);
+
+    return page;
+  }
+
+  private static async getChatStatus(
+    page: Page,
+    url: string,
+  ): Promise<VacancyApplicationStatus | null> {
+    const chatLink = page.locator(`a[href="${url}"]`);
+
+    if (await chatLink.count() === 0) return null;
+
+    const tagEl = chatLink.locator('[class*="last-message--"]');
+
+    if (await tagEl.count() === 0) return null;
+
+    const tagText = (await tagEl.innerText()).trim();
+
+    if (tagText.includes('Отказ')) return VacancyApplicationStatus.REJECTION;
+    if (tagText.includes('Собеседование')) return VacancyApplicationStatus.INTERVIEW;
+
+    return null;
+  }
+
+  private static async ensureUnreadFilterActive(page: Page): Promise<void> {
+    await page.waitForSelector('[data-qa="chatik-checkbox-only-unread"]');
+
+    const checkbox = page.locator('[data-qa="chatik-checkbox-only-unread"]');
+    const isChecked = await checkbox.isChecked();
+
+    if (!isChecked) {
+      await checkbox.click();
+
+      const loader = page.locator('[class*="loader--"]');
+
+      await loader.waitFor({ state: 'attached', timeout: 3000 }).catch(() => {});
+      await loader.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
+    }
+  }
+
+  private static async extractVacancyUrlFromChatPage(page: Page): Promise<string | null> {
+    try {
+      const vacancyLink = page.locator('[data-qa="chatik-header-vacancy-link"]');
+
+      if ((await vacancyLink.count()) === 0) return null;
+
+      const href = await vacancyLink.getAttribute('href');
+
+      if (!href) return null;
+
+      const url = new URL(href);
+
+      return `${url.origin}${url.pathname}`;
+    } catch {
+      return null;
     }
   }
 
@@ -114,13 +177,11 @@ export class VacancyChatService implements IVacancyChatService {
     return messages.slice().reverse().find((m) => m.author === 'hr' && hasContactPattern(m.text)) ?? null;
   }
 
-  private async handleChat(chatFrame: Frame, vacancy: HydratedDocument<VacancyApplicationDocument>): Promise<void> {
-    const messages = await VacancyChatService.parseMessages(chatFrame);
+  private async handleChat(page: Page, vacancy: HydratedDocument<VacancyApplicationDocument>): Promise<void> {
+    const messages = await VacancyChatService.parseMessages(page);
     const lastMessage = messages[messages.length - 1] ?? null;
 
     if (!lastMessage) return;
-
-    // Сравниваем с сохранённым последним сообщением
 
     const savedLastMessage = vacancy?.lastMessage;
 
@@ -156,7 +217,8 @@ export class VacancyChatService implements IVacancyChatService {
     }
 
     if (reply) {
-      await VacancyChatService.sendMessage(chatFrame, reply.messageToHR);
+      await VacancyChatService.sendMessage(page, reply.messageToHR);
+      await sleep(12000);
     }
 
     // Сохраняем последнее сообщение
@@ -169,11 +231,13 @@ export class VacancyChatService implements IVacancyChatService {
     await vacancy.save();
   }
 
-  private static async parseMessages(chatFrame: Frame): Promise<ChatMessage[]> {
-    await chatFrame.waitForSelector('[data-qa^="chatik-chat-message-"]');
+  private static async parseMessages(page: Page): Promise<ChatMessage[]> {
+    await page.waitForSelector('[data-qa^="chatik-chat-message-"]');
 
-    const messageElements = chatFrame.locator('[data-qa^="chatik-chat-message-"]');
+    const messageElements = page.locator('[data-qa^="chatik-chat-message-"]');
+
     const count = await messageElements.count();
+
     const messages: ChatMessage[] = [];
 
     for (let i = 0; i < count; i++) {
@@ -201,58 +265,12 @@ export class VacancyChatService implements IVacancyChatService {
     return messages;
   }
 
-  private static async getChatFrame(page: Page) {
-    const iframeEl = page.locator('.chatik-integration-iframe_loaded');
-
-    const iframeSrc = await iframeEl.getAttribute('src');
-
-    if (!iframeSrc) return null;
-
-    return page.frame({ url: iframeSrc });
-  }
-
-  private static async sendMessage(chatFrame: Frame, text: string): Promise<void> {
-    const input = chatFrame.locator('[data-qa="chatik-new-message-text"]');
+  private static async sendMessage(page: Page, text: string): Promise<void> {
+    const input = page.locator('[data-qa="chatik-new-message-text"]');
 
     await input.fill(text);
     await input.press('Enter');
 
     console.log('Reply sent:', text);
-  }
-
-  private static async getCardStatus(card: Locator): Promise<VacancyApplicationStatus | null> {
-    const tagEl = card.locator('[data-qa^="negotiations-tag"]');
-
-    if ((await tagEl.count()) === 0) return null;
-
-    const tagText = await tagEl.innerText();
-
-    if (tagText.includes('Отказ')) return VacancyApplicationStatus.REJECTION;
-    if (tagText.includes('Собеседование')) return VacancyApplicationStatus.INTERVIEW;
-
-    return null;
-  }
-
-  private static async goToNextPage(page: Page): Promise<boolean> {
-    const currentPageButton = page.locator('[data-qa*="number-pages"][aria-current="true"]');
-
-    const currentPageExists = await currentPageButton.count();
-
-    if (currentPageExists === 0) return false;
-
-    const currentPageText = await currentPageButton.innerText();
-    const currentPage = parseInt(currentPageText.trim(), 10);
-    const nextPage = currentPage + 1;
-
-    const nextPageButton = page.locator(`[data-qa*="number-pages-${nextPage}"]`);
-
-    if ((await nextPageButton.count()) === 0) {
-      return false;
-    }
-
-    await nextPageButton.click();
-    await page.waitForSelector('[data-qa="negotiations-item"]');
-
-    return true;
   }
 }
