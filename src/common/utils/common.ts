@@ -21,6 +21,8 @@ export async function debugScreenshot(page: Page, label: string): Promise<void> 
     const filename = `${label}_${random}.png`;
     const filepath = path.join('debug-screenshots', filename);
 
+    console.log({ filepath });
+
     await page.screenshot({ path: filepath, fullPage: true });
   } catch (error: any) {
     console.warn(`[debugScreenshot] failed: ${error.message}`);
