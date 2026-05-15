@@ -1,7 +1,8 @@
 import { hours, minutes } from '../utils/common';
 
 export const HH_URL = 'https://hh.ru';
-export const PROFILE_PATH = './hh-profile';
+
+export const EXECUTABLE_BROWSER_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 export const MAX_RETRY_JOB_APPLICATION_RUN_COUNT = 5;
 

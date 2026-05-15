@@ -1,5 +1,5 @@
 import {
-  BrowserContext, Page,
+  Page,
 } from 'playwright';
 import { HydratedDocument } from 'mongoose';
 
@@ -16,15 +16,18 @@ import { AppException } from '../../common/exceptions';
 import { bot } from '../../bot/bot';
 
 import { ChatMessage, IVacancyChatService } from './vacancy.types';
+import { BrowserService } from '../browser/browser.service';
 
 export class VacancyChatService implements IVacancyChatService {
   constructor(
-    private browserContext: BrowserContext,
+    private browserService: BrowserService,
     private gptService: GPTService,
   ) {}
 
   public async processChats(): Promise<void> {
-    const page: Page = await this.browserContext.newPage();
+    await this.browserService.start();
+
+    const page: Page = await this.browserService.getContext().newPage();
 
     try {
       await page.goto('https://hh.ru/chat', {
@@ -56,17 +59,18 @@ export class VacancyChatService implements IVacancyChatService {
 
         await openedPage.close();
       }
-
-      await page.close();
     } catch (err) {
       logger.error('CHAT_SERVICE_ERROR', err);
 
       throw new AppException('CHAT_SERVICE_ERROR', { cause: err });
+    } finally {
+      await page.close();
+      await this.browserService.stop();
     }
   }
 
   private async processChatPage(chatUrl: string): Promise<Page> {
-    const page: Page = await this.browserContext.newPage();
+    const page: Page = await this.browserService.getContext().newPage();
 
     await page.goto(chatUrl, {
       waitUntil: 'domcontentloaded',
@@ -150,8 +154,8 @@ export class VacancyChatService implements IVacancyChatService {
 
       const loader = page.locator('[class*="loader--"]');
 
-      await loader.waitFor({ state: 'attached', timeout: 3000 }).catch(() => {});
-      await loader.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
+      await loader.waitFor({ state: 'attached', timeout: 90000 }).catch(() => {});
+      await loader.waitFor({ state: 'detached', timeout: 90000 }).catch(() => {});
     }
   }
 

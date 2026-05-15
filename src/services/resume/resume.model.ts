@@ -3,6 +3,8 @@ import { Schema, model } from 'mongoose';
 
 import { IResumeModel, Resume, ResumeDocument } from './resume.types';
 
+import { AppException } from '../../common/exceptions';
+
 const ExperienceSchema = new Schema(
   {
     company: { type: String, required: true },
@@ -51,9 +53,16 @@ const ResumeSchema = new Schema<ResumeDocument>(
 ResumeSchema.statics.createResume = async function (
   data: Resume,
 ): Promise<ResumeDocument> {
+  const hasResumeExist = await this.findOne({ profession: data.profession });
+
+  if (hasResumeExist) {
+    throw new AppException('RESUME_ALREADY_EXIST');
+  }
+
   const resume = await this.create({
     ...data,
   });
+
   return resume;
 };
 

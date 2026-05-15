@@ -11,14 +11,20 @@ export const hours = (h: number) => h * 60 * 60 * 1000;
 export const minutes = (m: number) => m * 60 * 1000;
 export const seconds = (s: number) => s * 1000;
 
-export async function debugScreenshot(page: Page, label: string = 'debug'): Promise<void> {
-  await fs.mkdir('debug-screenshots', { recursive: true });
+export async function debugScreenshot(page: Page, label: string): Promise<void> {
+  try {
+    if (page.isClosed()) return;
 
-  const random = Math.random().toString(36).substring(2, 8);
-  const filename = `${label}_${random}.png`;
-  const filepath = path.join('debug-screenshots', filename);
+    await fs.mkdir('debug-screenshots', { recursive: true });
 
-  await page.screenshot({ path: filepath, fullPage: true });
+    const random = Math.random().toString(36).substring(2, 8);
+    const filename = `${label}_${random}.png`;
+    const filepath = path.join('debug-screenshots', filename);
+
+    await page.screenshot({ path: filepath, fullPage: true });
+  } catch (error: any) {
+    console.warn(`[debugScreenshot] failed: ${error.message}`);
+  }
 }
 
 export function truncateText(text: string, limit = 500) {

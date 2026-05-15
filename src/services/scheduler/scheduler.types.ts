@@ -1,10 +1,14 @@
-export interface SchedulerOptions {
-  errorMessages?: { bot: string; logger: string };
+export interface TaskDefinition {
+  name: string;
+  task: () => Promise<void>;
+  cronExpression: string;
+  attempts?: number;
+  retryDelay?: number;
 }
 
-export type TaskFn = () => Promise<void>;
-
-export interface QueuedTask {
-  name: string;
-  fn: TaskFn;
+export interface AddTaskArgs {
+  name: string,
+  cronExpression: string,
+  attempts?: number,
+  retryDelay?: number
 }

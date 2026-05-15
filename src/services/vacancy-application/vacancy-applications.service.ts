@@ -1,4 +1,4 @@
-import { BrowserContext, Locator, Page } from 'playwright';
+import { Locator, Page } from 'playwright';
 import { FormsAnswers, IGPTService } from '../chatgpt/chatgpt.types';
 
 import { IVacancyFetcher } from '../vacancy/vacancy.types';
@@ -10,31 +10,55 @@ import { logger } from '../../common/logger';
 import {
   PAGE_PARSING_DELAY,
 } from '../../common/constants/common';
-import { debugScreenshot, sleep, truncateText } from '../../common/utils/common';
+import { sleep, truncateText } from '../../common/utils/common';
 import { AppException } from '../../common/exceptions';
 
 import { VacancyApplicationModel } from './vacancy-applications.model';
 
 import { SettingsModel } from '../../models/settings/settings.model';
 
-import { ResumeModel } from '../resume/resume.model';
+import { BrowserService } from '../browser/browser.service';
 
 export class VacancyApplicationService {
   constructor(
-    private browserContext: BrowserContext,
+    private browser: BrowserService,
     private vacancyFetcher: IVacancyFetcher,
     private gptService: IGPTService,
   ) {}
 
   public async processNewVacancies(): Promise<void> {
+    const vacancyApplications = await VacancyApplicationModel.getVacancyApplications();
+
+    if (!vacancyApplications.length) return;
+
+    await this.browser.start();
+
+    for (const vacancyApplication of vacancyApplications) {
+      await this.applyToJob(vacancyApplication);
+    }
+
+    await this.browser.stop();
+  }
+
+  public async processSavedVacancies() {
+    const vacancyApplications = await VacancyApplicationModel.getActualVacancyApplications();
+
+    await this.browser.start();
+
+    for (const vacancyApplication of vacancyApplications) {
+      await this.applyToJob(vacancyApplication);
+    }
+
+    await this.browser.stop();
+  }
+
+  public async prepareVacancyApplications(): Promise<void> {
     const careerSettings = await SettingsModel.getByKey('career-preferences');
 
-    const { specializations } = careerSettings.value;
+    const { specializations, keywords, professions } = careerSettings.value;
 
     for (const specialization of specializations) {
       const fetchedVacancies = await this.vacancyFetcher.getVacancies(specialization.name);
-
-      const resumes = await ResumeModel.getResumesBySpec(specialization.id);
 
       if (!fetchedVacancies.length) {
         throw new AppException(AppErrorName.VACANCY_APPLICATIONS_FETCH_ERROR);
@@ -45,13 +69,13 @@ export class VacancyApplicationService {
         { ...vacancy, description: truncateText(vacancy?.description || '') },
       ]));
 
-      const keywords = resumes[0]?.keywords?.join(',') || '';
-
       const generatedApplications = await this.gptService.generateVacancyApplications(
         [...vacanciesMap.values()],
         specialization,
-        keywords,
+        keywords?.join(',') || '',
       );
+
+      console.dir(generatedApplications, { depth: null, colors: true });
 
       const vacancyApplications = generatedApplications.flatMap((application) => {
         const vacancyData = vacanciesMap.get(application.link);
@@ -61,35 +85,31 @@ export class VacancyApplicationService {
         return [{
           ...vacancyData,
           ...application,
-          resumes: resumes.map((resume) => resume.profession),
+          resumes: professions,
         }];
       }) as VacancyApplication[];
 
-      for (const vacancyApplication of vacancyApplications) {
-        if (!await VacancyApplicationModel.isAlreadyApplied(vacancyApplication.link)) {
-          await this.applyToJob(vacancyApplication);
-        }
+      try {
+        await VacancyApplicationModel.createApplications(vacancyApplications);
+      } catch (error) {
+        logger.error('VACANCY_APPLICATION_CREATE_IN_DB_ERROR', error);
+
+        continue;
       }
 
       await this.vacancyFetcher.markVacancySeen([...vacanciesMap.keys()]);
     }
   }
 
-  public async processSavedVacancies() {
-    const vacancyApplications = await VacancyApplicationModel.getActualVacancyApplications();
-
-    for (const vacancyApplication of vacancyApplications) {
-      await this.applyToJob(vacancyApplication);
-    }
-  }
-
   private async applyToJob(vacancy: VacancyApplication): Promise<void> {
     const { link, letter, resumes } = vacancy;
 
-    const page: Page = await this.browserContext.newPage();
+    const page: Page = await this.browser.getContext().newPage();
 
     try {
-      await page.goto(link, { waitUntil: 'domcontentloaded' });
+      await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 120000 });
+
+      console.log('page', link);
 
       const archiveText = page.locator('text="Вакансия в архиве"');
 
@@ -107,10 +127,27 @@ export class VacancyApplicationService {
         return;
       }
 
-      const responseButton = page.locator('[data-qa^="vacancy-response-link-top"]').first();
+      const clickOnResponseButton = async (responseButton: Locator) => {
+        await responseButton.waitFor({ state: 'visible', timeout: 90000 });
 
-      await responseButton.waitFor({ state: 'visible', timeout: 15000 });
-      await responseButton.click();
+        await page.waitForTimeout(2000);
+
+        await responseButton.click({ force: true });
+      };
+
+      try {
+        const responseButton = page.locator('[data-qa^="vacancy-response-link-top"]').first();
+
+        await clickOnResponseButton(responseButton);
+      } catch {
+        try {
+          const responseButton = page.locator('[data-qa="vacancy-response-link-top-again"]');
+
+          await clickOnResponseButton(responseButton);
+        } catch {
+          throw new AppException('VACANCY_APPLICATION_RESP_BTN_NOT_FOUND');
+        }
+      }
 
       let redirected = false;
 
@@ -131,6 +168,8 @@ export class VacancyApplicationService {
 
       await VacancyApplicationService.fillVacancyLetter(page, addCoverLetter, letter);
 
+      console.log('filled letter', link);
+
       try {
         const button = await page.locator('#RESPONSE_MODAL_FORM_ID [role="button"]');
 
@@ -144,9 +183,9 @@ export class VacancyApplicationService {
       await VacancyApplicationService.submitApply({
         page, vacancy, appliedResume,
       });
-    } catch (err) {
-      await debugScreenshot(page, 'apply-to-job');
 
+      console.log('replied finaly', link);
+    } catch (err) {
       logger.error(AppErrorName.JOB_APPLICATION_AUTO_APPLY_TO_JOB_ERROR, err);
     } finally {
       await sleep(PAGE_PARSING_DELAY);
@@ -158,50 +197,57 @@ export class VacancyApplicationService {
   private static async selectResume(page: Page, resumes: string[]): Promise<string> {
     const selectOptionsList = page.locator('[data-qa="magritte-select-option-list"] [role="option"]');
 
-    const count = await selectOptionsList.count();
+    await selectOptionsList.first().waitFor({ state: 'visible', timeout: 10000 });
 
+    const count = await selectOptionsList.count();
     let appliedResume = '';
 
     for (let i = 0; i < count; i++) {
       const option = selectOptionsList.nth(i);
       const titleElement = option.locator('[data-qa^="resume-title"]');
-
       const titleText = await titleElement.textContent();
 
       if (titleText && resumes.includes(titleText)) {
         appliedResume = titleText;
-
         await option.click();
-
         break;
       }
     }
 
-    await page.keyboard.press('Escape');
+    if (count > 0) {
+      await page.keyboard.press('Escape');
+    }
 
     return appliedResume;
   }
 
   private static async fillVacancyLetter(page: Page, addCoverLetter: Locator, letter: string) {
-    try {
-      await addCoverLetter.waitFor({ state: 'visible' });
-    } catch {
-      // intentionally empty
-    }
-
-    const addCoverLetterBtn = await addCoverLetter.count();
-
-    if (addCoverLetterBtn) {
-      await addCoverLetter.click();
-    }
-    // на формах почему то не заполняет
     const vacancyLetterInput = page.locator('[data-qa="vacancy-response-popup-form-letter-input"]');
 
-    await vacancyLetterInput.waitFor({ state: 'visible' });
-    await vacancyLetterInput.waitFor({ state: 'attached' });
+    const fillLetter = async () => {
+      await vacancyLetterInput.waitFor({ state: 'visible', timeout: 90000 });
+      await vacancyLetterInput.click({ force: true });
+      await vacancyLetterInput.fill(letter);
 
-    await vacancyLetterInput.click({ force: true });
-    await vacancyLetterInput.fill(letter);
+      console.log('letter filled!');
+    };
+
+    try {
+      await fillLetter();
+
+      return;
+    } catch {
+      // intentionaly empty
+    }
+
+    try {
+      await addCoverLetter.waitFor({ state: 'visible', timeout: 90000 });
+      await addCoverLetter.click();
+
+      await fillLetter();
+    } catch {
+      console.warn('cover letter input not found, skipping');
+    }
   }
 
   private static async fillForm(
@@ -255,17 +301,17 @@ export class VacancyApplicationService {
       '[data-qa="vacancy-response-submit-popup"]',
     );
 
-    await responseModalButton.waitFor({ state: 'visible', timeout: 15000 });
+    await responseModalButton.waitFor({ state: 'visible', timeout: 90000 });
 
     const [response] = await Promise.all([
-      page.waitForResponse((res) => res.url().includes('vacancy_response')),
+      page.waitForResponse((res) => res.url().includes('vacancy_response'), { timeout: 90000 }),
       responseModalButton.click(),
     ]);
 
     const status = response.status();
 
     if (status === 204 || status === 200) {
-      await VacancyApplicationModel.createApplication(vacancy, appliedResume);
+      await VacancyApplicationModel.updateApplication(vacancy, appliedResume);
     } else {
       logger.warn(`Apply failed with status: ${status}`);
     }

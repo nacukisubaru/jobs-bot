@@ -1,5 +1,3 @@
-import { BrowserContext } from 'playwright';
-
 import {
   FormQuestion,
   IVacancyFetcher, Vacancy,
@@ -8,29 +6,29 @@ import {
 import {
   HH_URL, PAGE_PARSING_DELAY, SEEN_VACANCIES_KEY, SEEN_VACANCIES_TTL, TG_CHAT_ID,
 } from '../../common/constants/common';
-import { debugScreenshot, sleep } from '../../common/utils/common';
+import { sleep } from '../../common/utils/common';
 import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
-import { HttpStatus } from '../../common/constants/https-status';
 import { logger } from '../../common/logger';
 import { BotMessageName } from '../../common/constants/bot';
-
-import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
 
 import { bot } from '../../bot/bot';
 
 import { RedisService } from '../redis/redis.service';
+import { BrowserService } from '../browser/browser.service';
 
 const { LIMIT_FETCH_VACANCIES } = process.env;
 
 export class VacancyService implements IVacancyFetcher {
   constructor(
-    private browserContext: BrowserContext,
+    private browserService: BrowserService,
     private redisService: RedisService,
   ) {
   }
 
   async getVacancies(job: string): Promise<Vacancy[]> {
+    await this.browserService.start();
+
     const allVacancies: Vacancy[] = [];
 
     let pageNumber = 0;
@@ -38,7 +36,7 @@ export class VacancyService implements IVacancyFetcher {
     let countVacancies = 0;
 
     while (hasNextPage) {
-      const page = await this.browserContext.newPage();
+      const page = await this.browserService.getContext().newPage();
 
       try {
         const params = new URLSearchParams({
@@ -50,6 +48,8 @@ export class VacancyService implements IVacancyFetcher {
         const searchUrl = `${HH_URL}/search/vacancy?${params.toString()}`;
 
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
+
+        console.log('screen vacnacies is ready!');
 
         await page.waitForSelector('[data-qa="serp-item__title"]');
 
@@ -66,8 +66,6 @@ export class VacancyService implements IVacancyFetcher {
 
         for (const vacancyLink of vacanciesLinks) {
           if (await this.isVacancySeen(vacancyLink as string)) continue;
-
-          if (!await VacancyApplicationModel.canApplyToVacancy(vacancyLink as string)) continue;
 
           if (LIMIT_FETCH_VACANCIES && countVacancies >= parseInt(LIMIT_FETCH_VACANCIES, 10)) {
             return allVacancies;
@@ -92,7 +90,6 @@ export class VacancyService implements IVacancyFetcher {
 
         if (!pageNumber && !nextButton) {
           throw new AppException(AppErrorName.VACANCY_MISSING_NEXT_BUTTON, {
-            status: HttpStatus.BAD_REQUEST,
             description: `Page ${pageNumber}, URL: ${page.url()}`,
           });
         }
@@ -102,8 +99,6 @@ export class VacancyService implements IVacancyFetcher {
 
         await sleep(PAGE_PARSING_DELAY);
       } catch (error) {
-        await debugScreenshot(page, 'parse-vacancies');
-
         logger.error(AppErrorName.VACANCY_PARSE_ERROR, error);
       } finally {
         await page.close();
@@ -115,6 +110,8 @@ export class VacancyService implements IVacancyFetcher {
       bot.sendMessage(TG_CHAT_ID, BotMessageName.VACANCY_PARSING_ERROR);
     }
 
+    await this.browserService.stop();
+
     return allVacancies;
   }
 
@@ -123,10 +120,19 @@ export class VacancyService implements IVacancyFetcher {
   }
 
   private async parseVacancyDetails(url: string): Promise<Vacancy> {
-    const page = await this.browserContext.newPage();
+    const page = await this.browserService.getContext().newPage();
 
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded' });
+
+      if (!page.url().includes('hh.ru/vacancy/')) {
+        await page.waitForURL('**/vacancy/**', { timeout: 15000 });
+      }
+
+      // const finalUrl = page.url();
+      const finalUrl = url;
+
+      console.log('final vacancy url:', finalUrl);
 
       const titleHandle = await page.$('[data-qa="vacancy-title"]');
       const companyHandle = await page.$('[data-qa="vacancy-company-name"]');
@@ -138,30 +144,33 @@ export class VacancyService implements IVacancyFetcher {
 
       const responseButton = page.locator('[data-qa^="vacancy-response-link-top"]').first();
 
-      await responseButton.waitFor({ state: 'visible', timeout: 15000 });
+      await responseButton.waitFor({ state: 'visible', timeout: 90000 });
       await responseButton.click();
+
+      console.log('vacancy-description', description);
 
       let form = null;
 
       try {
-        await page.waitForNavigation({ timeout: 15000 });
+        await page.waitForNavigation({ timeout: 90000 });
 
         form = await VacancyService.parseForm(page);
       } catch {
         // intentionally empty
       }
 
+      console.log('page url before screenshot:', page.url());
+      console.log('page is closed:', page.isClosed());
+
       return {
-        link: url,
+        link: finalUrl,
         title,
         company,
         description,
         ...(form && { form }),
       };
     } catch (error) {
-      throw new AppException(AppErrorName.VACANCY_PARSE_ERROR, {
-        status: HttpStatus.BAD_REQUEST, cause: error,
-      });
+      throw new AppException(AppErrorName.VACANCY_PARSE_ERROR, { cause: error });
     } finally {
       await page.close();
     }

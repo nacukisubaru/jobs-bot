@@ -1,0 +1,37 @@
+services:
+  app:
+    shm_size: 512m
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    build:
+      context: .
+      platforms:
+        - linux/amd64
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./logs:/app/logs
+      - ./debug-screenshots:/app/debug-screenshots
+      - ./hh-state.json:/app/hh-state.json
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --save 60 1
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  redis_data:

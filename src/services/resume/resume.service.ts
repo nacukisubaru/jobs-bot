@@ -1,4 +1,4 @@
-import { BrowserContext, Page } from 'playwright';
+import { Page } from 'playwright';
 
 import { Experience, IResumeService, Resume } from './resume.types';
 import { ResumeModel } from './resume.model';
@@ -9,62 +9,88 @@ import { CheckboxToggler } from '../../common/utils/checkbox-toggler';
 import { AppErrorName } from '../../common/constants/errors';
 import { AppException } from '../../common/exceptions';
 import { logger } from '../../common/logger';
-import { debugScreenshot } from '../../common/utils/common';
 import { HH_URL } from '../../common/constants/common';
 
 import { SettingsModel } from '../../models/settings/settings.model';
+import { BrowserService } from '../browser/browser.service';
+import { sleep } from '../../common/utils/common';
 
 export class ResumeService implements IResumeService {
   constructor(
-    private browserContext: BrowserContext,
+    private browserService: BrowserService,
     private gptService: GPTService,
   ) {}
 
   async createResumes(): Promise<void> {
-    const generatedResumes = await this.gptService.generateResumes();
+    const resumeSettings = await SettingsModel.getByKey('resume');
 
-    console.dir(generatedResumes, { depth: null, colors: true });
+    const bundlesCount = resumeSettings.value?.resumesBundlesCount || 1;
 
-    try {
-      await this.deleteAllResumes();
+    let countGeneratedResumesIterations = 0;
 
-      for (const resume of generatedResumes) {
-        await this.createResume(resume);
-        await ResumeModel.createResume(resume);
+    const generatedResumes = [];
+
+    await this.deleteAllResumes();
+
+    while (bundlesCount !== countGeneratedResumesIterations) {
+      const resumes = await this.gptService.generateResumes();
+
+      generatedResumes.push(...resumes);
+
+      try {
+        await this.browserService.start();
+
+        for (const resume of generatedResumes) {
+          const hasResumeExist = await ResumeModel.findOne({ profession: resume.profession });
+
+          if (hasResumeExist) continue;
+
+          await this.createResume(resume);
+
+          await ResumeModel.createResume(resume);
+        }
+
+        await this.editResumes();
+      } catch (error: unknown) {
+        if (
+          error instanceof AppException
+        && (
+          error.message === AppErrorName.BROWSER_AUTHORIZATION_IS_EXPIRED_ERROR
+          || error.message === AppErrorName.BROWSER_CAPTCHA_DETECTED_ERROR
+        )
+        ) {
+          throw error;
+        }
+
+        logger.error('Resume processing error, skipping:', error);
+      } finally {
+        await this.browserService.stop();
+
+        countGeneratedResumesIterations++;
       }
-
-      await this.editResumes();
-    } catch (error: unknown) {
-      if (
-        error instanceof AppException
-      && (
-        error.message === AppErrorName.BROWSER_AUTHORIZATION_IS_EXPIRED_ERROR
-        || error.message === AppErrorName.BROWSER_CAPTCHA_DETECTED_ERROR
-      )
-      ) {
-        throw error;
-      }
-
-      logger.error('Resume processing error, skipping:', error);
     }
   }
 
   private async createResume(createResumeDto: Resume): Promise<void> {
-    const page: Page = await this.browserContext.newPage();
+    const page: Page = await this.browserService.getContext().newPage();
 
     await page.goto(
       'https://hh.ru/profile/resume/professional_role?hhtmFrom=vacancy&hhtmFromLabel=create_resume_header',
-      { waitUntil: 'domcontentloaded' },
+      { waitUntil: 'domcontentloaded', timeout: 120000 },
     );
+
+    // const cookiesBtn = page.locator('button[data-qa="cookies-policy-informer-accept"]');
+    // await cookiesBtn.waitFor({ state: 'visible', timeout: 15000 });
+    // await cookiesBtn.click({ force: true });
 
     // =========================
     // Выбор профессии
     // =========================
     const selectJob = page.locator('[data-qa="resume-profile-card-select-job"]').first();
 
-    await page.waitForLoadState('networkidle');
+    // await page.waitForLoadState('networkidle');
 
-    await selectJob.waitFor({ state: 'visible' });
+    await selectJob.waitFor({ state: 'visible', timeout: 90000 });
     await selectJob.scrollIntoViewIfNeeded();
     await page.waitForTimeout(1000);
     await selectJob.click();
@@ -72,7 +98,7 @@ export class ResumeService implements IResumeService {
     // =========================
     // Ввод профессии
     // =========================
-    const professionInput = page.locator('[data-qa="resume-profile-position-input"]');
+    const professionInput = page.locator('[data-qa="resume-profile-position-input"]').first();
 
     await professionInput.waitFor({ state: 'visible' });
     await professionInput.click();
@@ -87,6 +113,7 @@ export class ResumeService implements IResumeService {
     const nextScreen = page.locator('[data-qa="resume-profile-next-screen"]');
 
     await nextScreen.waitFor({ state: 'visible' });
+    await nextScreen.scrollIntoViewIfNeeded();
     await nextScreen.click({ force: true });
 
     // =========================
@@ -99,7 +126,12 @@ export class ResumeService implements IResumeService {
         'span[data-qa="cell-text-content"]:has-text("Информационные технологии")',
       );
 
-      await itCategory.waitFor({ state: 'visible' });
+      console.log('itcatcount', await itCategory.count());
+
+      await itCategory.waitFor({ state: 'visible', timeout: 90000 });
+
+      console.log('itcatcount', await itCategory.count());
+
       await itCategory.first().click();
 
       const developer = page.locator(
@@ -119,8 +151,10 @@ export class ResumeService implements IResumeService {
         await page.waitForTimeout(300);
       }
 
-      await developer.waitFor({ timeout: 15000 });
+      await developer.waitFor({ timeout: 90000 });
       await developer.first().click();
+
+      sleep(90000);
 
       // =========================
       // Primary actions
@@ -135,6 +169,7 @@ export class ResumeService implements IResumeService {
     // Next screen
     // =========================
 
+    await nextScreen.scrollIntoViewIfNeeded();
     await nextScreen.waitFor({ state: 'visible' });
     await nextScreen.click({ force: true });
 
@@ -142,7 +177,7 @@ export class ResumeService implements IResumeService {
       'input[data-qa="resume-profile-common-surname-input"]',
     );
 
-    await hasProfileForm.waitFor({ state: 'visible', timeout: 15000 });
+    await hasProfileForm.waitFor({ state: 'visible', timeout: 90000 });
 
     await nextScreen.click({ force: true });
 
@@ -248,7 +283,7 @@ export class ResumeService implements IResumeService {
     const links = await this.collectResumeLinks();
 
     for (const link of links) {
-      const page: Page = await this.browserContext.newPage();
+      const page: Page = await this.browserService.getContext().newPage();
 
       await page.goto(`${HH_URL}${link}`);
 
@@ -259,16 +294,25 @@ export class ResumeService implements IResumeService {
   private async deleteAllResumes() {
     const links = await this.collectResumeLinks();
 
+    links.pop();
+
     for (const link of links) {
-      const page: Page = await this.browserContext.newPage();
+      const page: Page = await this.browserService.getContext().newPage();
 
       await page.goto(`${HH_URL}${link}`);
 
-      await page.waitForSelector('[data-qa="resume-delete"]');
-      await page.click('[data-qa="resume-delete"]');
+      const resumeDeleteBtn = page.locator('button[data-qa="resume-delete"]');
 
-      await page.waitForSelector('[data-qa="resume-delete-confirm"]');
-      await page.click('[data-qa="resume-delete-confirm"]');
+      await resumeDeleteBtn.waitFor({ state: 'visible', timeout: 90000 });
+      await resumeDeleteBtn.click({ force: true });
+      await page.waitForTimeout(20000);
+
+      const resumeDeleteConfirm = page.locator('button[data-qa="resume-delete-confirm"]');
+
+      await resumeDeleteConfirm.waitFor({ state: 'visible', timeout: 90000 });
+      await resumeDeleteConfirm.click({ force: true });
+
+      await page.close();
     }
 
     await ResumeModel.deleteAll();
@@ -381,15 +425,15 @@ export class ResumeService implements IResumeService {
 
       await btn.click();
     } catch {
-      debugScreenshot(page, 'edit-resume');
+      // intentionaly empty
     }
   }
 
   private async collectResumeLinks(): Promise<string[]> {
-    const page: Page = await this.browserContext.newPage();
+    const page: Page = await this.browserService.getContext().newPage();
 
     await page.goto('https://hh.ru/applicant/resumes');
-    await page.waitForSelector('[data-qa^="resume-card-link-"]', { timeout: 15000 });
+    await page.waitForSelector('[data-qa^="resume-card-link-"]', { timeout: 90000 });
 
     const links = await page.$$eval(
       '[data-qa^="resume-card-link-"]',

@@ -1,7 +1,7 @@
 import { Model } from 'mongoose';
 import { Page } from 'playwright';
 
-import { GeneratedVacancyApplication } from '../chatgpt/chatgpt.types';
+import { FormsAnswers, GeneratedVacancyApplication } from '../chatgpt/chatgpt.types';
 
 import { Vacancy } from '../vacancy/vacancy.types';
 
@@ -18,22 +18,26 @@ export interface VacancyApplicationDocument extends Omit<VacancyApplication, 're
   resumes: string[];
   description: string;
   type: 'vacancy' | 'chat',
+  isApplied: boolean;
   appliedResumes: string[];
   isArchived: boolean;
   lastMessage: string;
+  form: FormsAnswers,
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface IVacancyApplicationModel extends Model<VacancyApplicationDocument> {
-  createApplication(
+  createApplications(
+    vacancyApplication: VacancyApplication[],
+  ): Promise<void>;
+  updateApplication(
     vacancyApplication: VacancyApplication,
     appliedResume: string
   ): Promise<void>;
-  canApplyToVacancy(link: string): Promise<boolean>;
   getActualVacancyApplications: () => Promise<VacancyApplication[]>;
-  isAlreadyApplied(link: string): Promise<boolean>;
-  getRecentInterviews(): Promise<VacancyApplication[]>;
+  getVacancyApplications: () => Promise<VacancyApplication[]>;
+  // getRecentInterviews(): Promise<VacancyApplication[]>;
 }
 
 export interface SubmitApplyArgs {

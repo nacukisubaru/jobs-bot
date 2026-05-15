@@ -29,7 +29,7 @@ export interface IGPTService {
     specialization: SpecializationSetting,
     keywords: string,
   ): Promise<GeneratedVacancyApplication[]>;
-  generateResumes(content: string): Promise<Resume[]>;
-  analyzeInterviewPatterns(): Promise<string>;
   generateChatReply(message: string): Promise<Reply>;
+  // generateResumes(content: string): Promise<Resume[]>;
+  // analyzeInterviewPatterns(): Promise<string>;
 }

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const MONGO_URI = process.env.MONGO_URI ?? 'mongodb://localhost:27017/your_database';
+const MONGO_URI = process.env.MONGODB_URI ?? '';
 
 const settingSchema = new mongoose.Schema(
   {

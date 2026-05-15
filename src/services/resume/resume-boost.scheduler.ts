@@ -1,19 +1,18 @@
-import { BrowserContext, Page } from 'playwright';
+import { Page } from 'playwright';
 
-import { createScheduledTask } from '../scheduler/scheduler-factory';
-import { AsyncScheduler } from '../scheduler/scheduler.service';
-
-import { parseTime, timeToCron } from '../../common/utils/common';
+import { parseTime } from '../../common/utils/common';
+import { BrowserService } from '../browser/browser.service';
+import { appContainer } from '../../app-container';
 
 export class ResumeBoostScheduler {
-  private jobs: AsyncScheduler[] = [];
-
   private page: Page | null = null;
 
-  constructor(private readonly browserContext: BrowserContext) {}
+  constructor(private readonly browserService: BrowserService) {}
 
   async init(): Promise<void> {
-    this.page = await this.browserContext.newPage();
+    await this.browserService.start();
+
+    this.page = await this.browserService.getContext().newPage();
 
     await this.page.goto('https://hh.ru/applicant/resumes', { waitUntil: 'domcontentloaded' });
 
@@ -32,10 +31,13 @@ export class ResumeBoostScheduler {
         console.warn('Нет ни кнопок, ни renewal-текстовок — нечего планировать');
         return;
       }
+      const uniqueTimes = [...new Set(allTimes)];
 
-      this.scheduleByTimes(allTimes);
+      appContainer.scheduler.scheduleByTimes(uniqueTimes, 'resumebooster_');
     } finally {
       await this.page.close();
+      await this.browserService.stop();
+
       this.page = null;
     }
   }
@@ -68,36 +70,5 @@ export class ResumeBoostScheduler {
     return texts
       .map(parseTime)
       .filter((t): t is string => !!t);
-  }
-
-  private scheduleByTimes(times: string[]): void {
-    this.clearJobs();
-
-    const uniqueTimes = [...new Set(times)];
-
-    const alreadyScheduled = new Set(this.jobs.map((job) => job.getCronExpression()));
-    const newTimes = uniqueTimes.filter((time) => !alreadyScheduled.has(timeToCron(time)));
-
-    if (newTimes.length === 0) {
-      console.log('Все времена уже запланированы, пропускаем');
-
-      return;
-    }
-
-    this.jobs = uniqueTimes.map((time) => createScheduledTask(
-      () => this.init(),
-      timeToCron(time),
-      5000,
-      3,
-      `Ошибка поднятия резюме в ${time}`,
-      `Не удалось поднять резюме в ${time}`,
-    ));
-
-    console.log(`Запланировано ${this.jobs.length} job(s): ${uniqueTimes.join(', ')}`);
-  }
-
-  private clearJobs(): void {
-    this.jobs.forEach((job) => job.stop());
-    this.jobs = [];
   }
 }

@@ -1,14 +1,7 @@
-import { Readable } from 'stream';
-
 import { startCommand, stopCommand } from './commands/start-command';
+import { uploadCommand } from './commands/upload-command';
 
 import { bot } from './bot';
-
-import { VacancyService } from '../services/vacancy/vacancy.service';
-import { BrowserService } from '../services/browser/browser.service';
-import { GPTService } from '../services/chatgpt/chatgpt.service';
-
-import { BotMessageName } from '../common/constants/bot';
 
 export function registerBotCommands() {
   bot.onText(/\/start/, (msg) => {
@@ -19,45 +12,11 @@ export function registerBotCommands() {
     stopCommand(msg);
   });
 
-  bot.onText(/\/get-jobs/, async (msg) => {
-    const chatId = msg.chat.id;
+  bot.onText(/\/upload/, (msg) => uploadCommand(msg));
 
-    const browserService = new BrowserService('./hh-profile');
-
-    await browserService.start();
-
-    const context = browserService.getContext();
-
-    const vacancyService = new VacancyService(context);
-
-    const gptService = new GPTService();
-
-    try {
-    // to do сделать чтобы при откликах один раз в день присылало документ с вакансиями и количество
-
-      const vacancies = await vacancyService.getVacancies();
-
-      if (!vacancies.length) {
-        return await bot.sendMessage(chatId, 'Вакансий не найдено.');
-      }
-
-      const vacancyApplications = await gptService.generateVacancyApplications(vacancies);
-
-      const text = vacancyApplications.map((v) => `${v.title} - ${v.link}`).join('\n');
-
-      const buffer = Buffer.from(text, 'utf-8');
-      const stream = Readable.from(buffer);
-
-      bot.sendMessage(chatId, `Найдено ${vacancyApplications.length} вакансий`);
-
-      await bot.sendDocument(chatId, stream, {}, { filename: 'vacancies.txt' });
-    } catch (err) {
-      console.error(err);
-      bot.sendMessage(chatId, BotMessageName.GET_JOBS_ERROR);
-    } finally {
-      browserService.stop();
+  bot.on('document', (msg) => {
+    if (msg.caption?.startsWith('/upload')) {
+      uploadCommand(msg);
     }
-
-    return undefined;
   });
 }

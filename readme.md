@@ -3,6 +3,11 @@ env $(cat .env) npm run bot
 env $(cat .env) npm run app
 env $(cat .env) npm run auth
 
+docker compose up --build -d
+docker compose logs -f app
+docker compose down
+
+redis-cli KEYS "bull:*" | xargs redis-cli DEL
 
 ставим LIMIT_FETCH_VACANCIES = 50
 пробегаем по странице собираем ссылки, при переборе ссылок проверяем, что уже была такая ссылка, а время повторного отклика не наступило

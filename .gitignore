@@ -8,7 +8,7 @@ yarn-error.log*
 playwright/.local-browsers/
 
 # Папки с профилями и временные файлы
-hh-profile/
+hh-state.json
 tmp/
 *.tmp
 *.log

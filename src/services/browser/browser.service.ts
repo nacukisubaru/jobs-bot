@@ -1,22 +1,20 @@
 import {
-  chromium, BrowserContext, Page,
+  BrowserContext, Page,
 } from 'playwright';
+
+import { chromium } from 'playwright-extra';
+
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
 import { bot } from '../../bot/bot';
 
 import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
-import { TG_CHAT_ID } from '../../common/constants/common';
+import { EXECUTABLE_BROWSER_PATH, TG_CHAT_ID } from '../../common/constants/common';
 import { BotMessageName } from '../../common/constants/bot';
 
 export class BrowserService {
   private context: BrowserContext | null = null;
-
-  private profilePath: string;
-
-  constructor(profilePath: string) {
-    this.profilePath = profilePath;
-  }
 
   public getContext(): BrowserContext {
     return this.context!;
@@ -26,19 +24,69 @@ export class BrowserService {
     if (this.context) return this.context;
 
     try {
-      this.context = await chromium.launchPersistentContext(this.profilePath, {
-        headless: false,
-        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      chromium.use(StealthPlugin());
+
+      const browser = await chromium.launch({
+        ...(process.env.SET_EXECUTABLE_PATH && { executablePath: EXECUTABLE_BROWSER_PATH }),
+        // executablePath: '/usr/bin/google-chrome-stable',
+        headless: true,
+        args: [
+          // Отключение GPU
+          '--disable-gpu',
+
+          // // Отключение ненужных фич
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-extensions',
+          '--disable-plugins',
+          '--disable-sync',
+          '--disable-translate',
+          '--disable-background-networking',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-breakpad',
+          '--disable-client-side-phishing-detection',
+          '--disable-component-update',
+          '--disable-default-apps',
+          '--disable-domain-reliability',
+          '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process',
+          '--disable-hang-monitor',
+          '--disable-ipc-flooding-protection',
+          '--disable-notifications',
+          '--disable-offer-store-unmasked-wallet-cards',
+          '--disable-popup-blocking',
+          '--disable-print-preview',
+          '--disable-prompt-on-repost',
+          '--disable-renderer-backgrounding',
+          '--disable-speech-api',
+
+          // // Сеть / рендеринг
+          '--no-first-run',
+          '--no-default-browser-check',
+          '--mute-audio',
+          '--hide-scrollbars',
+        ],
+      });
+
+      this.context = await browser.newContext({
+        storageState: 'hh-state.json',
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        args: ['--start-maximized', '--disable-blink-features=AutomationControlled'],
-        viewport: null,
+      });
+
+      await this.context.route('**/*', (route) => {
+        const type = route.request().resourceType();
+        if (['image', 'media', 'font'].includes(type)) {
+          route.abort();
+        } else {
+          route.continue();
+        }
       });
 
       this.decorateContext();
 
       return this.context;
     } catch (error) {
-      throw new AppException(AppErrorName.BROWSER_RUN_ERROR);
+      throw new AppException(AppErrorName.BROWSER_RUN_ERROR, { cause: error });
     }
   }
 
@@ -50,16 +98,44 @@ export class BrowserService {
     }
   }
 
-  public async isAuth(): Promise<boolean> {
+  public async checkAuth(): Promise<void> {
+    await this.start();
+
     if (!this.context) {
       throw new AppException(AppErrorName.BROWSER_CONTEXT_NOT_FOUND);
     }
 
-    const cookies = await this.context.cookies();
+    const page = await this.context.newPage();
 
-    const isAuth = cookies.some((cookie) => cookie.domain.includes('hh.ru'));
+    try {
+      await page.goto('https://hh.ru/applicant/resumes', {
+        waitUntil: 'networkidle',
+      });
 
-    return isAuth;
+      const url = page.url();
+
+      const isCaptcha = url.includes('captcha')
+        || (await page.locator('iframe[src*="captcha"]').count()) > 0
+        || (await page.locator('input[name*="captcha"]').count()) > 0
+        || (await page.locator('input[id*="captcha"]').count()) > 0;
+
+      if (isCaptcha) {
+        bot.sendMessage(TG_CHAT_ID, BotMessageName.CAPTCHA_DETECTED);
+      }
+
+      const loginBtn = page.locator('a[data-qa="login"]');
+
+      try {
+        await loginBtn.waitFor({ state: 'visible', timeout: 15000 });
+
+        bot.sendMessage(TG_CHAT_ID, BotMessageName.AUTHORIZATION_IS_EXPIRED);
+      } catch {
+        // intentionaly empty
+      }
+    } finally {
+      await page.close();
+      await this.stop();
+    }
   }
 
   private decorateContext(): void {
@@ -74,8 +150,8 @@ export class BrowserService {
         url: Parameters<Page['goto']>[0],
         options?: Parameters<Page['goto']>[1],
       ) => {
-        const RETRY_COUNT = 5;
-        const RETRY_DELAY_MS = 2000;
+        const RETRY_COUNT = 20;
+        const RETRY_DELAY_MS = 3000;
 
         for (let attempt = 1; attempt <= RETRY_COUNT; attempt++) {
           try {
@@ -84,23 +160,6 @@ export class BrowserService {
               timeout: 30000,
               ...options,
             });
-
-            const isCaptcha = page.url().includes('captcha')
-            || (await page.locator('iframe[src*="captcha"]').count()) > 0
-            || (await page.locator('input[name*="captcha"]').count()) > 0
-            || (await page.locator('input[id*="captcha"]').count()) > 0;
-
-            if (isCaptcha) {
-              bot.sendMessage(TG_CHAT_ID, BotMessageName.CAPTCHA_DETECTED);
-
-              throw new AppException(AppErrorName.BROWSER_CAPTCHA_DETECTED_ERROR);
-            }
-
-            if (!(await this.isAuth())) {
-              bot.sendMessage(TG_CHAT_ID, BotMessageName.AUTHORIZATION_IS_EXPIRED);
-
-              throw new AppException(AppErrorName.BROWSER_AUTHORIZATION_IS_EXPIRED_ERROR);
-            }
 
             return result;
           } catch (error) {

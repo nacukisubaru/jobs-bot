@@ -22,6 +22,10 @@ export class RedisService {
     return (await this.client.sismember(key, value)) === 1;
   }
 
+  async getMember(key: string): Promise<any> {
+    return this.client.get(key);
+  }
+
   async addMember(key: string, value: string | string[], ttl?: number): Promise<void> {
     const values = Array.isArray(value) ? value : [value];
 
@@ -34,5 +38,3 @@ export class RedisService {
     await this.client.quit();
   }
 }
-
-export const redisService = new RedisService();
