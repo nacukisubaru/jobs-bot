@@ -7,6 +7,8 @@ docker compose up --build -d
 docker compose logs -f app
 docker compose down
 
+docker compose up -d
+
 redis-cli KEYS "bull:*" | xargs redis-cli DEL
 
 ставим LIMIT_FETCH_VACANCIES = 50

@@ -6,7 +6,7 @@ import {
 import {
   HH_URL, PAGE_PARSING_DELAY, SEEN_VACANCIES_KEY, SEEN_VACANCIES_TTL, TG_CHAT_ID,
 } from '../../common/constants/common';
-import { sleep } from '../../common/utils/common';
+import { debugScreenshot, sleep } from '../../common/utils/common';
 import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
 import { logger } from '../../common/logger';
@@ -48,6 +48,8 @@ export class VacancyService implements IVacancyFetcher {
         const searchUrl = `${HH_URL}/search/vacancy?${params.toString()}`;
 
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
+
+        await debugScreenshot(page, 'vacancy-search');
 
         console.log('screen vacnacies is ready!');
 
