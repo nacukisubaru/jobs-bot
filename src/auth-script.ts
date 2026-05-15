@@ -1,9 +1,8 @@
 import { chromium } from 'playwright';
 import fs from 'fs';
-import { EXECUTABLE_BROWSER_PATH } from './common/constants/common';
 
 async function run() {
-  const browser = await chromium.launch({ headless: false, executablePath: EXECUTABLE_BROWSER_PATH });
+  const browser = await chromium.launch({ headless: false, executablePath: process.env.EXECUTABLE_BROWSER_PATH });
 
   const context = await browser.newContext({
     storageState: 'hh-state.json',

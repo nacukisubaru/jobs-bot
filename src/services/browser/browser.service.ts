@@ -10,7 +10,7 @@ import { bot } from '../../bot/bot';
 
 import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
-import { EXECUTABLE_BROWSER_PATH, TG_CHAT_ID } from '../../common/constants/common';
+import { TG_CHAT_ID } from '../../common/constants/common';
 import { BotMessageName } from '../../common/constants/bot';
 
 export class BrowserService {
@@ -27,8 +27,7 @@ export class BrowserService {
       chromium.use(StealthPlugin());
 
       const browser = await chromium.launch({
-        ...(process.env.SET_EXECUTABLE_PATH && { executablePath: EXECUTABLE_BROWSER_PATH }),
-        // executablePath: '/usr/bin/google-chrome-stable',
+        executablePath: process.env.EXECUTABLE_BROWSER_PATH,
         headless: true,
         args: [
           // Отключение GPU
