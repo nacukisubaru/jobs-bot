@@ -1,4 +1,4 @@
-FROM node:22-bookworm
+FROM node:22-bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -9,14 +9,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcomposite1 libxdamage1 libxfixes3 libxkbcommon0 libxrandr2 \
     fonts-liberation \
     && wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && apt-get install -y /tmp/chrome.deb \
+    && apt-get install -y --no-install-recommends /tmp/chrome.deb \
     && rm /tmp/chrome.deb \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /usr/share/doc \
+    && rm -rf /usr/share/man \
+    && rm -rf /usr/share/locale \
+    && rm -rf /root/.cache
 
 WORKDIR /app
+
 COPY package*.json ./
-RUN npm install
+RUN npm ci --omit=dev && npm cache clean --force
+
 COPY . .
+
 RUN chmod +x /app/scripts/entrypoint.sh
+
 EXPOSE 3000
+
 ENTRYPOINT ["sh", "/app/scripts/entrypoint.sh"]
