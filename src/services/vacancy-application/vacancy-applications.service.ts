@@ -55,7 +55,7 @@ export class VacancyApplicationService {
   public async prepareVacancyApplications(): Promise<void> {
     const careerSettings = await SettingsModel.getByKey('career-preferences');
 
-    const { specializations, keywords, professions } = careerSettings.value;
+    const { specializations, keywords } = careerSettings.value;
 
     for (const specialization of specializations) {
       const fetchedVacancies = await this.vacancyFetcher.getVacancies(specialization.name);
@@ -85,7 +85,7 @@ export class VacancyApplicationService {
         return [{
           ...vacancyData,
           ...application,
-          resumes: professions,
+          resumes: specialization.resumes,
         }];
       }) as VacancyApplication[];
 

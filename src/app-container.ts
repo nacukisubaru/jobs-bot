@@ -34,37 +34,39 @@ export class AppContainer {
     this.resumeBooster = new ResumeBoostScheduler(this.browser);
 
     this.scheduler = new BullScheduler([
-      // {
-      //   name: 'checkAuth',
-      //   task: () => this.browser.checkAuth(),
-      //   cronExpression: CRON.EVERY_HOUR,
-      // },
+      {
+        name: 'checkAuth',
+        task: () => this.browser.checkAuth(),
+        cronExpression: CRON.EVERY_HOUR,
+      },
       {
         name: 'prepareVacancies',
         task: () => this.vacancyApplicationService.prepareVacancyApplications(),
         cronExpression: CRON.EVERY_HOUR,
+        attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+        retryDelay: AUTO_REPLIES_RETRY_DELAY,
       },
-      // {
-      //   name: 'vacanciesReplies',
-      //   task: () => this.vacancyApplicationService.processNewVacancies(),
-      //   cronExpression: CRON.EVERY_4_HOURS,
-      //   attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
-      //   retryDelay: AUTO_REPLIES_RETRY_DELAY,
-      // },
-      // {
-      //   name: 'savedVacancies',
-      //   task: () => vacancyApplicationService.processSavedVacancies(),
-      //   cronExpression: CRON.EVERY_HOUR,
-      //   attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
-      //   retryDelay: AUTO_REPLIES_RETRY_DELAY,
-      // },
-      // {
-      //   name: 'chatting',
-      //   task: () => vacancyChatService.processChats(),
-      //   cronExpression: CRON.EVERY_HOUR,
-      //   attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
-      //   retryDelay: AUTO_REPLIES_RETRY_DELAY,
-      // },
+      {
+        name: 'vacanciesReplies',
+        task: () => this.vacancyApplicationService.processNewVacancies(),
+        cronExpression: CRON.EVERY_HOUR,
+        attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+        retryDelay: AUTO_REPLIES_RETRY_DELAY,
+      },
+      {
+        name: 'savedVacancies',
+        task: () => this.vacancyApplicationService.processSavedVacancies(),
+        cronExpression: CRON.EVERY_HOUR,
+        attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+        retryDelay: AUTO_REPLIES_RETRY_DELAY,
+      },
+      {
+        name: 'chatting',
+        task: () => this.vacancyChatService.processChats(),
+        cronExpression: CRON.EVERY_HOUR,
+        attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+        retryDelay: AUTO_REPLIES_RETRY_DELAY,
+      },
     ]);
   }
 }
