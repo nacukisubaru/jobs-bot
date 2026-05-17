@@ -129,8 +129,7 @@ export class VacancyService implements IVacancyFetcher {
         await page.waitForURL('**/vacancy/**', { timeout: 15000 });
       }
 
-      // const finalUrl = page.url();
-      const finalUrl = url;
+      const finalUrl = page.url();
 
       console.log('final vacancy url:', finalUrl);
 
