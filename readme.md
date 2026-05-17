@@ -9,6 +9,9 @@ docker compose down
 
 docker compose up -d
 
+
+docker compose build --no-cache && docker compose up -d
+
 redis-cli KEYS "bull:*" | xargs redis-cli DEL
 
 ставим LIMIT_FETCH_VACANCIES = 50
