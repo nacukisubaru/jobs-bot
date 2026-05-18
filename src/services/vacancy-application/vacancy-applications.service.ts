@@ -173,8 +173,11 @@ export class VacancyApplicationService {
       try {
         const button = await page.locator('#RESPONSE_MODAL_FORM_ID [role="button"]');
 
+        await button.waitFor({ state: 'visible', timeout: 90000 });
+
         await button.click();
-      } catch {
+      } catch (error) {
+        console.log('error click', error);
         // intentional empty
       }
 

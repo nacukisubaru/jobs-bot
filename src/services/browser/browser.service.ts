@@ -70,6 +70,7 @@ export class BrowserService {
       this.context = await browser.newContext({
         storageState: 'hh-state.json',
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        viewport: null,
       });
 
       await this.context.route('**/*', (route) => {

@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 
 async function run() {
-  const browser = await chromium.launch({ headless: false, executablePath: process.env.EXECUTABLE_BROWSER_PATH });
+  const browser = await chromium.launch({ headless: false, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
 
   const context = await browser.newContext({
     storageState: 'hh-state.json',

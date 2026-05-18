@@ -35,6 +35,13 @@ export class AppContainer {
 
     this.scheduler = new BullScheduler([
       {
+        name: 'vacanciesReplies',
+        task: () => this.vacancyApplicationService.processNewVacancies(),
+        cronExpression: CRON.EVERY_HOUR,
+        attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+        retryDelay: AUTO_REPLIES_RETRY_DELAY,
+      },
+      {
         name: 'checkAuth',
         task: () => this.browser.checkAuth(),
         cronExpression: CRON.EVERY_HOUR,
@@ -42,13 +49,6 @@ export class AppContainer {
       {
         name: 'prepareVacancies',
         task: () => this.vacancyApplicationService.prepareVacancyApplications(),
-        cronExpression: CRON.EVERY_HOUR,
-        attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
-        retryDelay: AUTO_REPLIES_RETRY_DELAY,
-      },
-      {
-        name: 'vacanciesReplies',
-        task: () => this.vacancyApplicationService.processNewVacancies(),
         cronExpression: CRON.EVERY_HOUR,
         attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
         retryDelay: AUTO_REPLIES_RETRY_DELAY,
