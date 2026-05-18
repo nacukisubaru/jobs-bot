@@ -41,32 +41,32 @@ export class AppContainer {
         attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
         retryDelay: AUTO_REPLIES_RETRY_DELAY,
       },
-      {
-        name: 'checkAuth',
-        task: () => this.browser.checkAuth(),
-        cronExpression: CRON.EVERY_HOUR,
-      },
-      {
-        name: 'prepareVacancies',
-        task: () => this.vacancyApplicationService.prepareVacancyApplications(),
-        cronExpression: CRON.EVERY_HOUR,
-        attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
-        retryDelay: AUTO_REPLIES_RETRY_DELAY,
-      },
-      {
-        name: 'savedVacancies',
-        task: () => this.vacancyApplicationService.processSavedVacancies(),
-        cronExpression: CRON.EVERY_HOUR,
-        attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
-        retryDelay: AUTO_REPLIES_RETRY_DELAY,
-      },
-      {
-        name: 'chatting',
-        task: () => this.vacancyChatService.processChats(),
-        cronExpression: CRON.EVERY_HOUR,
-        attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
-        retryDelay: AUTO_REPLIES_RETRY_DELAY,
-      },
+      // {
+      //   name: 'checkAuth',
+      //   task: () => this.browser.checkAuth(),
+      //   cronExpression: CRON.EVERY_HOUR,
+      // },
+      // {
+      //   name: 'prepareVacancies',
+      //   task: () => this.vacancyApplicationService.prepareVacancyApplications(),
+      //   cronExpression: CRON.EVERY_HOUR,
+      //   attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+      //   retryDelay: AUTO_REPLIES_RETRY_DELAY,
+      // },
+      // {
+      //   name: 'savedVacancies',
+      //   task: () => this.vacancyApplicationService.processSavedVacancies(),
+      //   cronExpression: CRON.EVERY_HOUR,
+      //   attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+      //   retryDelay: AUTO_REPLIES_RETRY_DELAY,
+      // },
+      // {
+      //   name: 'chatting',
+      //   task: () => this.vacancyChatService.processChats(),
+      //   cronExpression: CRON.EVERY_HOUR,
+      //   attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+      //   retryDelay: AUTO_REPLIES_RETRY_DELAY,
+      // },
     ]);
   }
 }

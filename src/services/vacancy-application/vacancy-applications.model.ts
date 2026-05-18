@@ -132,6 +132,18 @@ VacancyApplicationSchema.statics.getVacancyApplications = async function (): Pro
   return vacancyApplications;
 };
 
+VacancyApplicationSchema.statics.archiveVacancyApplication = async function (link: string) {
+  return this.updateOne(
+    { link },
+    {
+      $set: {
+        isArchived: true,
+        updatedAt: new Date(),
+      },
+    },
+  );
+};
+
 // VacancyApplicationSchema.statics.getRecentInterviews = async function (): Promise<VacancyApplication[]> {
 //   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 

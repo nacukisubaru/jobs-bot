@@ -19,6 +19,8 @@ import { SettingsModel } from '../../models/settings/settings.model';
 
 import { BrowserService } from '../browser/browser.service';
 
+import { clickVacancyApplyButton } from '../../common/utils/vacancy';
+
 export class VacancyApplicationService {
   constructor(
     private browser: BrowserService,
@@ -109,45 +111,27 @@ export class VacancyApplicationService {
     try {
       await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 120000 });
 
+      try {
+        const vacancyTitle = page.locator('[data-qa="vacancy-title"]');
+
+        await vacancyTitle.waitFor({ state: 'visible', timeout: 15000 });
+      } catch {
+        await VacancyApplicationModel.archiveVacancyApplication(link);
+
+        return;
+      }
+
       console.log('page', link);
 
       const archiveText = page.locator('text="Вакансия в архиве"');
 
       if (await archiveText.count() > 0) {
-        await VacancyApplicationModel.updateOne(
-          { link },
-          {
-            $set: {
-              isArchived: true,
-              updatedAt: new Date(),
-            },
-          },
-        );
+        await VacancyApplicationModel.archiveVacancyApplication(link);
 
         return;
       }
 
-      const clickOnResponseButton = async (responseButton: Locator) => {
-        await responseButton.waitFor({ state: 'visible', timeout: 90000 });
-
-        await page.waitForTimeout(2000);
-
-        await responseButton.click({ force: true });
-      };
-
-      try {
-        const responseButton = page.locator('[data-qa^="vacancy-response-link-top"]').first();
-
-        await clickOnResponseButton(responseButton);
-      } catch {
-        try {
-          const responseButton = page.locator('[data-qa="vacancy-response-link-top-again"]');
-
-          await clickOnResponseButton(responseButton);
-        } catch {
-          throw new AppException('VACANCY_APPLICATION_RESP_BTN_NOT_FOUND');
-        }
-      }
+      await clickVacancyApplyButton(page);
 
       let redirected = false;
 
@@ -158,8 +142,10 @@ export class VacancyApplicationService {
         redirected = false;
       }
 
-      if (redirected && vacancy.form) {
-        await VacancyApplicationService.fillForm(page, resumes, vacancy);
+      if (redirected) {
+        if (vacancy.form && Object.keys(vacancy.form).length > 0) {
+          await VacancyApplicationService.fillForm(page, resumes, vacancy);
+        }
 
         return;
       }
@@ -171,17 +157,16 @@ export class VacancyApplicationService {
       console.log('filled letter', link);
 
       try {
-        const button = await page.locator('#RESPONSE_MODAL_FORM_ID [role="button"]');
-
-        await button.waitFor({ state: 'visible', timeout: 90000 });
-
-        await button.click();
+        await page.waitForSelector('[data-qa="resume-title"]', { state: 'visible', timeout: 90000 });
+        await page.locator('[data-qa="resume-title"]').click({ force: true });
       } catch (error) {
         console.log('error click', error);
         // intentional empty
       }
 
       const appliedResume = await VacancyApplicationService.selectResume(page, resumes);
+
+      console.log('selected resume', appliedResume, link);
 
       await VacancyApplicationService.submitApply({
         page, vacancy, appliedResume,
@@ -200,9 +185,10 @@ export class VacancyApplicationService {
   private static async selectResume(page: Page, resumes: string[]): Promise<string> {
     const selectOptionsList = page.locator('[data-qa="magritte-select-option-list"] [role="option"]');
 
-    await selectOptionsList.first().waitFor({ state: 'visible', timeout: 10000 });
+    await selectOptionsList.first().waitFor({ state: 'visible', timeout: 30000 });
 
     const count = await selectOptionsList.count();
+
     let appliedResume = '';
 
     for (let i = 0; i < count; i++) {
@@ -212,7 +198,9 @@ export class VacancyApplicationService {
 
       if (titleText && resumes.includes(titleText)) {
         appliedResume = titleText;
+
         await option.click();
+
         break;
       }
     }

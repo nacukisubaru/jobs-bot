@@ -37,6 +37,7 @@ export interface IVacancyApplicationModel extends Model<VacancyApplicationDocume
   ): Promise<void>;
   getActualVacancyApplications: () => Promise<VacancyApplication[]>;
   getVacancyApplications: () => Promise<VacancyApplication[]>;
+  archiveVacancyApplication: (link: string) => Promise<void>;
   // getRecentInterviews(): Promise<VacancyApplication[]>;
 }
 

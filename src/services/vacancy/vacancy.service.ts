@@ -17,6 +17,8 @@ import { bot } from '../../bot/bot';
 import { RedisService } from '../redis/redis.service';
 import { BrowserService } from '../browser/browser.service';
 
+import { clickVacancyApplyButton } from '../../common/utils/vacancy';
+
 const { LIMIT_FETCH_VACANCIES } = process.env;
 
 export class VacancyService implements IVacancyFetcher {
@@ -119,7 +121,7 @@ export class VacancyService implements IVacancyFetcher {
     await this.redisService.addMember(SEEN_VACANCIES_KEY, url, SEEN_VACANCIES_TTL);
   }
 
-  private async parseVacancyDetails(url: string): Promise<Vacancy> {
+  public async parseVacancyDetails(url: string): Promise<Vacancy> {
     const page = await this.browserService.getContext().newPage();
 
     try {
@@ -141,10 +143,7 @@ export class VacancyService implements IVacancyFetcher {
       const company = (await companyHandle?.textContent())?.trim() || '';
       const description = (await descriptionHandle?.textContent()) || '';
 
-      const responseButton = page.locator('[data-qa^="vacancy-response-link-top"]').first();
-
-      await responseButton.waitFor({ state: 'visible', timeout: 90000 });
-      await responseButton.click();
+      await clickVacancyApplyButton(page);
 
       console.log('vacancy-description', description);
 
