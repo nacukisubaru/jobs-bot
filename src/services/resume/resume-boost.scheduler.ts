@@ -1,8 +1,9 @@
 import { Page } from 'playwright';
 
-import { parseTime } from '../../common/utils/common';
+import { debugScreenshot, parseTime } from '../../common/utils/common';
 import { BrowserService } from '../browser/browser.service';
 import { appContainer } from '../../app-container';
+import { closeModalIfExists } from '../../common/utils/playwright';
 
 export class ResumeBoostScheduler {
   private page: Page | null = null;
@@ -17,11 +18,17 @@ export class ResumeBoostScheduler {
     await this.page.goto('https://hh.ru/applicant/resumes', { waitUntil: 'domcontentloaded' });
 
     try {
+      await closeModalIfExists(this.page);
+
       const updateButtons = this.page.locator('[data-qa="resume-update-button-text"]');
       const hasUpdateButtons = (await updateButtons.count()) > 0;
 
+      await debugScreenshot(this.page, 'resume_booster_1');
+
       if (hasUpdateButtons) {
         await this.clickAvailableUpdateButtons();
+
+        await debugScreenshot(this.page, 'resume_booster_2');
       }
 
       const times = await this.parseRenewalTimes();
@@ -34,6 +41,8 @@ export class ResumeBoostScheduler {
       const uniqueTimes = [...new Set(allTimes)];
 
       appContainer.scheduler.scheduleByTimes(uniqueTimes, 'resumebooster_');
+    } catch {
+      await debugScreenshot(this.page, 'resume_booster_init_error');
     } finally {
       await this.page.close();
       await this.browserService.stop();
@@ -49,7 +58,11 @@ export class ResumeBoostScheduler {
     const count = await buttons.count();
 
     for (let i = 0; i < count; i++) {
-      await buttons.nth(i).click();
+      const button = buttons.nth(i);
+
+      await button.scrollIntoViewIfNeeded();
+      await this.page.waitForTimeout(300);
+      await button.click();
       await this.page.waitForTimeout(500);
     }
   }

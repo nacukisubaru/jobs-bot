@@ -70,7 +70,7 @@ export class BrowserService {
       this.context = await browser.newContext({
         storageState: 'hh-state.json',
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        viewport: { width: 1125, height: 785 },
+        viewport: { width: 1125, height: 900 },
       });
 
       await this.context.route('**/*', (route) => {
@@ -109,7 +109,7 @@ export class BrowserService {
 
     try {
       await page.goto('https://hh.ru/applicant/resumes', {
-        waitUntil: 'networkidle',
+        waitUntil: 'domcontentloaded',
       });
 
       const url = page.url();
