@@ -30,6 +30,18 @@ export class BullScheduler {
 
       if (!task) throw new Error(`Unknown task: ${job.name}`);
 
+      const activeJobs = await this.queue.getActive();
+
+      const alreadyRunning = activeJobs.some(
+        (j) => j.name === job.name && j.id !== job.id,
+      );
+
+      if (alreadyRunning) {
+        logger.warn(`[BullMQ] ${job.name} already running, skipping`);
+
+        return;
+      }
+
       await task();
     }, { connection });
 
@@ -52,6 +64,7 @@ export class BullScheduler {
     return this.queue.add(name, {}, {
       repeat: { pattern: cronExpression },
       attempts,
+      removeOnComplete: true,
       ...(retryDelay && { backoff: { type: 'fixed', delay: retryDelay } }),
     });
   }
@@ -100,7 +113,7 @@ export class BullScheduler {
       }
 
       if (runOnInit) {
-        await this.queue.add(name, {});
+        await this.queue.add(name, {}, { removeOnComplete: true });
       }
     }
 

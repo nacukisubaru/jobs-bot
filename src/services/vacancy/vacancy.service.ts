@@ -90,12 +90,6 @@ export class VacancyService implements IVacancyFetcher {
 
         const nextButton = await page.$('[data-qa="pager-next"]');
 
-        if (!pageNumber && !nextButton) {
-          throw new AppException(AppErrorName.VACANCY_MISSING_NEXT_BUTTON, {
-            description: `Page ${pageNumber}, URL: ${page.url()}`,
-          });
-        }
-
         hasNextPage = !!nextButton;
         pageNumber++;
 
