@@ -40,6 +40,13 @@ export class AppContainer {
         cronExpression: CRON.EVERY_HOUR,
       },
       {
+        name: 'chatting',
+        task: () => this.vacancyChatService.processChats(),
+        cronExpression: CRON.EVERY_HOUR,
+        attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
+        retryDelay: AUTO_REPLIES_RETRY_DELAY,
+      },
+      {
         name: 'prepareVacancies',
         task: () => this.vacancyApplicationService.prepareVacancyApplications(),
         cronExpression: CRON.EVERY_3_HOURS,
@@ -49,13 +56,6 @@ export class AppContainer {
       {
         name: 'vacanciesReplies',
         task: () => this.vacancyApplicationService.processNewVacancies(),
-        cronExpression: CRON.EVERY_HOUR,
-        attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
-        retryDelay: AUTO_REPLIES_RETRY_DELAY,
-      },
-      {
-        name: 'chatting',
-        task: () => this.vacancyChatService.processChats(),
         cronExpression: CRON.EVERY_HOUR,
         attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
         retryDelay: AUTO_REPLIES_RETRY_DELAY,

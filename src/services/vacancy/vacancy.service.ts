@@ -4,7 +4,7 @@ import {
 } from './vacancy.types';
 
 import {
-  HH_URL, PAGE_PARSING_DELAY, SEEN_VACANCIES_KEY, SEEN_VACANCIES_TTL, TG_CHAT_ID,
+  HH_URL, PAGE_PARSING_DELAY, TG_CHAT_ID,
 } from '../../common/constants/common';
 import { sleep } from '../../common/utils/common';
 import { AppException } from '../../common/exceptions';
@@ -18,6 +18,8 @@ import { RedisService } from '../redis/redis.service';
 import { BrowserService } from '../browser/browser.service';
 
 import { clickVacancyApplyButton } from '../../common/utils/vacancy';
+
+import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
 
 const { LIMIT_FETCH_VACANCIES } = process.env;
 
@@ -67,13 +69,13 @@ export class VacancyService implements IVacancyFetcher {
         }
 
         for (const vacancyLink of vacanciesLinks) {
-          if (await this.isVacancySeen(vacancyLink as string)) continue;
+          const existingVacancy = await VacancyApplicationModel.findOne({ link: vacancyLink });
+
+          if (existingVacancy) continue;
 
           if (LIMIT_FETCH_VACANCIES && countVacancies >= parseInt(LIMIT_FETCH_VACANCIES, 10)) {
             return allVacancies;
           }
-
-          await this.markVacancySeen(vacancyLink as string);
 
           try {
             const vacancy = await this.parseVacancyDetails(vacancyLink as string);
@@ -109,10 +111,6 @@ export class VacancyService implements IVacancyFetcher {
     await this.browserService.stop();
 
     return allVacancies;
-  }
-
-  public async markVacancySeen(url: string | string[]): Promise<void> {
-    await this.redisService.addMember(SEEN_VACANCIES_KEY, url, SEEN_VACANCIES_TTL);
   }
 
   public async parseVacancyDetails(url: string): Promise<Vacancy> {
@@ -233,9 +231,5 @@ export class VacancyService implements IVacancyFetcher {
     }
 
     return formQuestions;
-  }
-
-  private async isVacancySeen(url: string): Promise<boolean> {
-    return this.redisService.isMember(SEEN_VACANCIES_KEY, url);
   }
 }

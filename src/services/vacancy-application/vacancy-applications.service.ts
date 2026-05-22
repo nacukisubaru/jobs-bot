@@ -98,8 +98,6 @@ export class VacancyApplicationService {
 
         continue;
       }
-
-      await this.vacancyFetcher.markVacancySeen([...vacanciesMap.keys()]);
     }
   }
 
