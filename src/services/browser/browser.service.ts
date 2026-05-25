@@ -29,6 +29,8 @@ export class BrowserService {
     if (this.context) return this.context;
 
     try {
+      await BrowserService.cleanPlaywrightProfiles();
+
       chromium.use(StealthPlugin());
 
       const browser = await chromium.launch({
