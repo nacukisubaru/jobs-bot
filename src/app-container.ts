@@ -38,6 +38,7 @@ export class AppContainer {
         name: 'checkAuth',
         task: () => this.browser.checkAuth(),
         cronExpression: CRON.EVERY_HOUR,
+        priority: 2,
       },
       {
         name: 'chatting',
@@ -45,6 +46,7 @@ export class AppContainer {
         cronExpression: CRON.EVERY_HOUR,
         attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
         retryDelay: AUTO_REPLIES_RETRY_DELAY,
+        priority: 1,
       },
       {
         name: 'prepareVacancies',
@@ -52,6 +54,7 @@ export class AppContainer {
         cronExpression: CRON.EVERY_3_HOURS,
         attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
         retryDelay: AUTO_REPLIES_RETRY_DELAY,
+        priority: 3,
       },
       {
         name: 'vacanciesReplies',
@@ -59,6 +62,7 @@ export class AppContainer {
         cronExpression: CRON.EVERY_HOUR,
         attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
         retryDelay: AUTO_REPLIES_RETRY_DELAY,
+        priority: 4,
       },
       {
         name: 'savedVacancies',
@@ -66,6 +70,7 @@ export class AppContainer {
         cronExpression: CRON.EVERY_HOUR,
         attempts: MAX_RETRY_JOB_APPLICATION_RUN_COUNT,
         retryDelay: AUTO_REPLIES_RETRY_DELAY,
+        priority: 5,
       },
     ]);
 

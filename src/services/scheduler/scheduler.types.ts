@@ -4,11 +4,13 @@ export interface TaskDefinition {
   cronExpression: string;
   attempts?: number;
   retryDelay?: number;
+  priority?: number;
 }
 
 export interface AddTaskArgs {
   name: string,
   cronExpression: string,
   attempts?: number,
-  retryDelay?: number
+  retryDelay?: number,
+  priority?: number,
 }

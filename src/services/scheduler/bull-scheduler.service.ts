@@ -59,13 +59,14 @@ export class BullScheduler {
   }
 
   addTask({
-    name, cronExpression, attempts, retryDelay,
+    name, cronExpression, attempts, retryDelay, priority,
   }: AddTaskArgs) {
     return this.queue.add(name, {}, {
       repeat: { pattern: cronExpression },
       attempts,
       removeOnComplete: true,
       ...(retryDelay && { backoff: { type: 'fixed', delay: retryDelay } }),
+      priority,
     });
   }
 
@@ -101,11 +102,11 @@ export class BullScheduler {
     const existingNames = repeatableJobs.map((j) => j.name);
 
     for (const {
-      name, cronExpression, attempts = 3, retryDelay = 5000,
+      name, cronExpression, attempts = 3, retryDelay = 5000, priority = 1,
     } of this.taskDefinitions) {
       if (!existingNames.includes(name)) {
         this.addTask({
-          name, cronExpression, attempts, retryDelay,
+          name, cronExpression, attempts, retryDelay, priority,
         });
         logger.info(`[BullMQ] Registered task: ${name}`);
       } else {
@@ -113,7 +114,7 @@ export class BullScheduler {
       }
 
       if (runOnInit) {
-        await this.queue.add(name, {}, { removeOnComplete: true });
+        await this.queue.add(name, {}, { removeOnComplete: true, priority });
       }
     }
 

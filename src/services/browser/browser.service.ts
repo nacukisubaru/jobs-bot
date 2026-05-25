@@ -1,3 +1,7 @@
+import os from 'os';
+import { promises as fs } from 'fs';
+import path from 'path';
+
 import {
   BrowserContext, Page,
 } from 'playwright';
@@ -12,6 +16,7 @@ import { AppException } from '../../common/exceptions';
 import { AppErrorName } from '../../common/constants/errors';
 import { TG_CHAT_ID } from '../../common/constants/common';
 import { BotMessageName } from '../../common/constants/bot';
+import { logger } from '../../common/logger';
 
 export class BrowserService {
   private context: BrowserContext | null = null;
@@ -99,6 +104,8 @@ export class BrowserService {
   public async stop(): Promise<void> {
     if (this.context) {
       await this.context.close();
+
+      await BrowserService.cleanPlaywrightProfiles();
 
       this.context = null;
     }
@@ -188,5 +195,23 @@ export class BrowserService {
         value: decoratedGoto,
       });
     });
+  }
+
+  private static async cleanPlaywrightProfiles(): Promise<void> {
+    try {
+      const tmpDir = os.tmpdir();
+      const entries = await fs.readdir(tmpDir);
+
+      const profiles = entries.filter((e) => e.startsWith('playwright_chromiumdev_profile')
+      || e.startsWith('puppeteer_dev_profile'));
+
+      await Promise.all(
+        profiles.map((p) => fs.rm(path.join(tmpDir, p), { recursive: true, force: true })),
+      );
+
+      logger.info(`[Browser] Cleaned ${profiles.length} temp profiles`);
+    } catch (error) {
+      logger.error('[Browser] Failed to clean temp profiles', error);
+    }
   }
 }
