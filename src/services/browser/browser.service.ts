@@ -33,6 +33,12 @@ export class BrowserService {
           // Отключение GPU
           '--disable-gpu',
 
+          // no-cache
+          '--disable-cache',
+          '--disk-cache-size=0',
+          '--disable-application-cache',
+          '--media-cache-size=0',
+
           // // Отключение ненужных фич
           '--no-sandbox',
           '--disable-setuid-sandbox',
