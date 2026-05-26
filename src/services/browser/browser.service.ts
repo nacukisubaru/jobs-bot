@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 import {
+  Browser,
   BrowserContext, Page,
 } from 'playwright';
 
@@ -21,6 +22,8 @@ import { logger } from '../../common/logger';
 export class BrowserService {
   private context: BrowserContext | null = null;
 
+  private browser: Browser | null = null;
+
   public getContext(): BrowserContext {
     return this.context!;
   }
@@ -33,8 +36,8 @@ export class BrowserService {
 
       chromium.use(StealthPlugin());
 
-      const browser = await chromium.launch({
-        executablePath: process.env.EXECUTABLE_BROWSER_PATH,
+      this.browser = await chromium.launch({
+        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         headless: true,
         args: [
           // Отключение GPU
@@ -80,7 +83,7 @@ export class BrowserService {
         ],
       });
 
-      this.context = await browser.newContext({
+      this.context = await this.browser.newContext({
         storageState: 'hh-state.json',
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         viewport: { width: 1125, height: 900 },
@@ -110,6 +113,12 @@ export class BrowserService {
       await BrowserService.cleanPlaywrightProfiles();
 
       this.context = null;
+    }
+
+    if (this.browser) {
+      await this.browser.close();
+
+      this.browser = null;
     }
   }
 

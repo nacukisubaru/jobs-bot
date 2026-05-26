@@ -39,34 +39,87 @@ export class VacancyChatService implements IVacancyChatService {
 
       if (!chatExists) {
         await page.close();
-
         return;
       }
 
-      await VacancyChatService.ensureUnreadFilterActive(page);
-
-      await page.waitForSelector('[data-qa^="chatik-open-chat-"]');
-
-      const chatLinks = await page.$$eval(
-        '[data-qa^="chatik-open-chat-"]',
-        (els) => els.map((el) => (el as HTMLAnchorElement).href),
-      );
+      const chatLinks = await VacancyChatService.collectUnreadChatLinks(page);
 
       logger.info(`Collected ${chatLinks.length} unread chat links`);
 
       for (const chatUrl of chatLinks) {
         const openedPage = await this.processChatPage(chatUrl);
-
         await openedPage.close();
       }
     } catch (err) {
       logger.error('CHAT_SERVICE_ERROR', err);
-
       throw new AppException('CHAT_SERVICE_ERROR', { cause: err });
     } finally {
       await page.close();
       await this.browserService.stop();
     }
+  }
+
+  private static async collectUnreadChatLinks(page: Page, maxCards = 10): Promise<string[]> {
+    const chatLinks: string[] = [];
+    const allCardsSelector = 'a[data-qa^="chatik-open-chat-"]';
+    const unreadSelector = 'a[data-qa^="chatik-open-chat-"]:has([data-qa="chatik-info-badges"])';
+    const baseUrl = 'https://hh.ru';
+
+    logger.info('[Chat] Starting scroll to collect unread chats...');
+
+    let prevAllCount = 0;
+    let noGrowthRetries = 0;
+
+    const MAX_RETRIES = 10;
+
+    while (true) {
+      const allCards = page.locator(allCardsSelector);
+
+      const allCount = await allCards.count();
+
+      if (allCount === 0) break;
+
+      // Собираем бейджики из того что сейчас видно
+      const unreadCards = page.locator(unreadSelector);
+      const unreadCount = await unreadCards.count();
+
+      for (let i = 0; i < unreadCount; i++) {
+        const href = await unreadCards.nth(i).getAttribute('href');
+        if (href && !chatLinks.includes(href)) {
+          chatLinks.push(href);
+          logger.info(`[Chat] Found unread chat: ${href}`);
+        }
+      }
+
+      // Стоп если прошли maxCards карточек
+      if (chatLinks.length >= maxCards) {
+        logger.info(`[Chat] Reached max cards limit (${maxCards}), stopping`);
+        break;
+      }
+
+      await allCards.last().scrollIntoViewIfNeeded();
+      await page.waitForTimeout(1000);
+
+      const newAllCount = await page.locator(allCardsSelector).count();
+
+      if (newAllCount === prevAllCount) {
+        noGrowthRetries++;
+        logger.info(`[Chat] No growth, retry ${noGrowthRetries}/${MAX_RETRIES}`);
+
+        if (noGrowthRetries >= MAX_RETRIES) {
+          logger.info('[Chat] Reached end of list');
+          break;
+        }
+
+        await page.waitForTimeout(1500 * noGrowthRetries);
+      } else {
+        noGrowthRetries = 0;
+      }
+
+      prevAllCount = newAllCount;
+    }
+
+    return chatLinks.map((href) => (href.startsWith('http') ? href : `${baseUrl}${href}`));
   }
 
   private async processChatPage(chatUrl: string): Promise<Page> {
@@ -108,7 +161,6 @@ export class VacancyChatService implements IVacancyChatService {
     if (status) {
       vacancy.status = status;
       vacancy.updatedAt = new Date();
-
       await vacancy.save();
     }
 
@@ -141,22 +193,6 @@ export class VacancyChatService implements IVacancyChatService {
     if (tagText.includes('Собеседование')) return VacancyApplicationStatus.INTERVIEW;
 
     return null;
-  }
-
-  private static async ensureUnreadFilterActive(page: Page): Promise<void> {
-    await page.waitForSelector('[data-qa="chatik-checkbox-only-unread"]');
-
-    const checkbox = page.locator('[data-qa="chatik-checkbox-only-unread"]');
-    const isChecked = await checkbox.isChecked();
-
-    if (!isChecked) {
-      await checkbox.click();
-
-      const loader = page.locator('[class*="loader--"]');
-
-      await loader.waitFor({ state: 'attached', timeout: 90000 }).catch(() => {});
-      await loader.waitFor({ state: 'detached', timeout: 90000 }).catch(() => {});
-    }
   }
 
   private static async extractVacancyUrlFromChatPage(page: Page): Promise<string | null> {
@@ -194,7 +230,6 @@ export class VacancyChatService implements IVacancyChatService {
 
     if (savedLastMessage && !hasNewHrMessage) {
       console.log('No new HR messages, skipping reply');
-
       return;
     }
 
@@ -225,8 +260,6 @@ export class VacancyChatService implements IVacancyChatService {
       await sleep(12000);
     }
 
-    // Сохраняем последнее сообщение
-
     // eslint-disable-next-line no-param-reassign
     vacancy.lastMessage = lastMessage.text;
     // eslint-disable-next-line no-param-reassign
@@ -239,9 +272,7 @@ export class VacancyChatService implements IVacancyChatService {
     await page.waitForSelector('[data-qa^="chatik-chat-message-"]');
 
     const messageElements = page.locator('[data-qa^="chatik-chat-message-"]');
-
     const count = await messageElements.count();
-
     const messages: ChatMessage[] = [];
 
     for (let i = 0; i < count; i++) {

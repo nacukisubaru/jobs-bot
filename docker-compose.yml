@@ -18,7 +18,13 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    restart: unless-stopped
+    restart: always
+    memswap_limit: 3G
+    mem_swappiness: 10
+    deploy:
+      resources:
+        limits:
+          memory: 2G
     logging:
       driver: "json-file"
       options:
@@ -35,7 +41,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
+    restart: always
+    memswap_limit: 256M
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     logging:
       driver: "json-file"
       options:

@@ -13,7 +13,7 @@ export const PAGE_PARSING_DELAY = Number(process.env.PAGE_PARSING_DELAY) || 5000
 
 export const CRON = {
   CHECK_AUTH: '0 * * * *', // каждый час в :00
-  CHATTING: '10 * * * *', // каждый час в :10
+  CHATTING: '*/10 * * * *', // каждые 10 минут
   VACANCIES_REPLIES: '20 * * * *', // каждый час в :20
   SAVED_VACANCIES: '40 * * * *', // каждый час в :40
   PREPARE_VACANCIES: '0 1,3,5 * * *', // в 01:00, 03:00, 05:00
