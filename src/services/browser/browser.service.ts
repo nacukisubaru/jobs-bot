@@ -37,7 +37,7 @@ export class BrowserService {
       chromium.use(StealthPlugin());
 
       this.browser = await chromium.launch({
-        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        executablePath: process.env.EXECUTABLE_BROWSER_PATH,
         headless: true,
         args: [
           // Отключение GPU
