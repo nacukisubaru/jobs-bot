@@ -12,11 +12,11 @@ export const TG_CHAT_ID = Number(process.env.TG_BOT_CHAT_ID);
 export const PAGE_PARSING_DELAY = Number(process.env.PAGE_PARSING_DELAY) || 5000;
 
 export const CRON = {
-  CHECK_AUTH: '0 * * * *', // каждый час в :00
-  CHATTING: '*/10 * * * *', // каждые 10 минут
-  VACANCIES_REPLIES: '20 * * * *', // каждый час в :20
-  SAVED_VACANCIES: '40 * * * *', // каждый час в :40
-  PREPARE_VACANCIES: '0 1,3,5 * * *', // в 01:00, 03:00, 05:00
+  CHECK_AUTH: '0 8-23 * * *', // каждый час в :00, с 08:00 до 23:00
+  CHATTING: '*/10 8-23 * * *', // каждые 10 минут с 08:00 до 23:00
+  VACANCIES_REPLIES: '20 8-23 * * *', // каждый час в :20, с 08:00 до 23:00
+  SAVED_VACANCIES: '40 8-23 * * *', // каждый час в :40, с 08:00 до 23:00
+  PREPARE_VACANCIES: '0 0-7 * * *', // в 01:00, 03:00, 05:00, 07:00
 } as const;
 
 export const AUTO_REPLIES_DELAY = process.env.AUTO_REPLIES_DELAY

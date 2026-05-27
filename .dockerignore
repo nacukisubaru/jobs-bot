@@ -1,4 +1,5 @@
 ./logs
 ./debug-screenshots
+./vscode
 hh-state.json
 node_modules

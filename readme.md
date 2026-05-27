@@ -16,6 +16,12 @@ docker compose build --no-cache && docker builder prune -a -f && docker compose 
 
 redis-cli KEYS "bull:*" | xargs redis-cli DEL
 
+логи: 
+
+docker logs --since "2026-05-26T00:00:00" --until "2026-05-26T23:59:59" jobs-bot-app-1
+
+docker logs --since "2026-05-26T00:00:00" --until "2026-05-26T23:59:59" jobs-bot-app-1 2>&1 | grep "final vacancy url"
+
 ставим LIMIT_FETCH_VACANCIES = 50
 пробегаем по странице собираем ссылки, при переборе ссылок проверяем, что уже была такая ссылка, а время повторного отклика не наступило
 мы можем ставить на каждые 20 минут например по 50 вакансий, когда мы заново начнем парсить, те вакансии на которые мы откликались

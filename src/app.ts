@@ -1,3 +1,5 @@
+import 'dotenv/config'; // ← первая строка файла
+
 import mongoose from 'mongoose';
 
 import { registerBotCommands } from './bot/main';
