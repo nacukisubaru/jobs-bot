@@ -19,7 +19,7 @@ export type FormQuestion =
   | { question: string; options: { id: string, optionText: string } };
 
 export interface Reply {
-  type: 'message' | 'interview' | 'none',
+  type: 'message' | 'interview' | 'none' | 'test-task' | 'form',
   contact?: string,
   company?: string,
   messageToHR: string,

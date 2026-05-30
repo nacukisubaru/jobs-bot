@@ -3,6 +3,7 @@ import {
 } from 'playwright';
 import { HydratedDocument } from 'mongoose';
 
+// import { addHours, addHours, format } from 'date-fns';
 import { GPTService } from '../chatgpt/chatgpt.service';
 
 import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
@@ -17,6 +18,7 @@ import { bot } from '../../bot/bot';
 
 import { ChatMessage, IVacancyChatService } from './vacancy.types';
 import { BrowserService } from '../browser/browser.service';
+// import { appContainer } from '../../app-container';
 
 export class VacancyChatService implements IVacancyChatService {
   constructor(
@@ -235,37 +237,70 @@ export class VacancyChatService implements IVacancyChatService {
 
     const reply = await this.gptService.generateChatReply(lastMessage.text);
 
-    if (reply.type === 'none') return;
-
-    if (reply.type === 'interview') {
-      bot.sendMessage(TG_CHAT_ID, `
-        Ура ура! Тебя пригласили на собес!\n\n
-        Компания: ${reply.company}\n\n
-        Контакты: ${reply.contact}\n\n
-        Сообщение: ${lastMessage.text}
-      `);
-    } else {
-      const chatMessage = VacancyChatService.findMessageWithContact(messages);
-
-      if (chatMessage) {
-        bot.sendMessage(TG_CHAT_ID, `
-        Ура ура! Тебя пригласили на собес!\n\n
-        Сообщение: ${chatMessage.text}
-      `);
-      }
-    }
-
     if (reply) {
       await VacancyChatService.sendMessage(page, reply.messageToHR);
       await sleep(12000);
     }
 
+    const cleanMessage = lastMessage.text.replace(/\s+/g, ' ').trim();
+
     // eslint-disable-next-line no-param-reassign
-    vacancy.lastMessage = lastMessage.text;
+    vacancy.lastMessage = cleanMessage;
     // eslint-disable-next-line no-param-reassign
     vacancy.updatedAt = new Date();
 
     await vacancy.save();
+
+    if (reply.type === 'none') return;
+
+    if (reply.type === 'form') {
+      bot.sendMessage(
+        TG_CHAT_ID,
+        'Заполни форму!\n\n'
+        + `Ссылка на вакансию: ${vacancy.link}\n\n`
+        + `Сообщение:\n${cleanMessage}`,
+      );
+
+      // const time = format(addHours(new Date(), 1), 'HH:mm');
+      // appContainer.scheduler.scheduleByTimes([time], 'fill_chat_form_', async () => {
+      //   // логика заполнения формы
+      // });
+
+      return;
+    }
+
+    if (reply.type === 'test-task') {
+      bot.sendMessage(
+        TG_CHAT_ID,
+        'Тебе прислали тестовое задание!\n\n'
+        + `Ссылка на вакансию: ${vacancy.link}\n\n`
+        + `Сообщение:\n${cleanMessage}`,
+      );
+
+      return;
+    }
+
+    if (reply.type === 'interview') {
+      bot.sendMessage(
+        TG_CHAT_ID,
+        'Ура ура! Тебя пригласили на собес!\n\n'
+        + `Ссылка на вакансию: ${vacancy.link}\n\n`
+        + `Контакты: ${reply.contact}\n\n`
+        + `Сообщение:\n${cleanMessage}`,
+      );
+
+      return;
+    }
+
+    const chatMessage = VacancyChatService.findMessageWithContact(messages);
+
+    if (chatMessage) {
+      bot.sendMessage(
+        TG_CHAT_ID,
+        'Ура ура! Тебя пригласили на собес!\n\n'
+          + `Сообщение:\n${chatMessage.text.trim()}`,
+      );
+    }
   }
 
   private static async parseMessages(page: Page): Promise<ChatMessage[]> {

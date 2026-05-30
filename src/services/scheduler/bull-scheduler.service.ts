@@ -70,7 +70,7 @@ export class BullScheduler {
     });
   }
 
-  async scheduleByTimes(times: string[], taskName: string): Promise<void> {
+  async scheduleByTimes(times: string[], taskName: string, task: () => Promise<void>): Promise<void> {
     const existingJobs = await this.queue.getJobSchedulers();
 
     for (const job of existingJobs) {
@@ -81,6 +81,8 @@ export class BullScheduler {
 
     for (const time of times) {
       const name = `${taskName}_${time}`;
+
+      this.tasks.set(name, task);
 
       this.addTask({
         name,
