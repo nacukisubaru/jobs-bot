@@ -1,11 +1,15 @@
 import { Model } from 'mongoose';
 import { Page } from 'playwright';
 
-import { FormsAnswers, GeneratedVacancyApplication } from '../chatgpt/chatgpt.types';
+import {
+  FormsAnswers,
+  // GeneratedVacancyApplication
+} from '../chatgpt/chatgpt.types';
 
 import { Vacancy } from '../vacancy/vacancy.types';
 
-export type VacancyApplication = Omit<Vacancy, 'form'> & GeneratedVacancyApplication;
+// export type VacancyApplication = Omit<Vacancy, 'form'>;
+//& GeneratedVacancyApplication;
 
 export const enum VacancyApplicationStatus {
   REJECTION = 'rejection',
@@ -13,7 +17,7 @@ export const enum VacancyApplicationStatus {
   INTERVIEW = 'interview',
 }
 
-export interface VacancyApplicationDocument extends Omit<VacancyApplication, 'resume'>, Document {
+export interface VacancyApplicationDocument extends Omit<Vacancy, 'resume'>, Document {
   status: VacancyApplicationStatus;
   resumes: string[];
   description: string;
@@ -29,20 +33,23 @@ export interface VacancyApplicationDocument extends Omit<VacancyApplication, 're
 
 export interface IVacancyApplicationModel extends Model<VacancyApplicationDocument> {
   createApplications(
-    vacancyApplication: VacancyApplication[],
+    vacancyApplication: Vacancy[],
+  ): Promise<void>;
+  createApplication(
+    vacancyApplication: Vacancy,
   ): Promise<void>;
   updateApplication(
-    vacancyApplication: VacancyApplication,
+    vacancyApplication: Vacancy,
     appliedResume: string
   ): Promise<void>;
-  getActualVacancyApplications: () => Promise<VacancyApplication[]>;
-  getVacancyApplications: () => Promise<VacancyApplication[]>;
+  getActualVacancyApplications: () => Promise<Vacancy[]>;
+  getVacancyApplications: () => Promise<Vacancy[]>;
   archiveVacancyApplication: (link: string) => Promise<void>;
   // getRecentInterviews(): Promise<VacancyApplication[]>;
 }
 
 export interface SubmitApplyArgs {
   page: Page;
-  vacancy: VacancyApplication;
+  vacancy: Vacancy;
   appliedResume: string;
 }

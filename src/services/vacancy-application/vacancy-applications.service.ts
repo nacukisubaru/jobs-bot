@@ -1,14 +1,15 @@
 import { Locator, Page } from 'playwright';
 import { FormsAnswers, IGPTService } from '../chatgpt/chatgpt.types';
 
-import { IVacancyFetcher } from '../vacancy/vacancy.types';
+import { IVacancyFetcher, Vacancy } from '../vacancy/vacancy.types';
 
-import { SubmitApplyArgs, VacancyApplication } from './vacancy-applications.types';
+import { SubmitApplyArgs } from './vacancy-applications.types';
 
 import { AppErrorName } from '../../common/constants/errors';
 import { logger } from '../../common/logger';
 import {
   PAGE_PARSING_DELAY,
+  TG_CHAT_ID,
 } from '../../common/constants/common';
 import { sleep, truncateText } from '../../common/utils/common';
 import { AppException } from '../../common/exceptions';
@@ -20,6 +21,7 @@ import { SettingsModel } from '../../models/settings/settings.model';
 import { BrowserService } from '../browser/browser.service';
 
 import { clickVacancyApplyButton } from '../../common/utils/vacancy';
+import { bot } from '../../bot/bot';
 
 export class VacancyApplicationService {
   constructor(
@@ -57,51 +59,32 @@ export class VacancyApplicationService {
   public async prepareVacancyApplications(): Promise<void> {
     const careerSettings = await SettingsModel.getByKey('career-preferences');
 
-    const { specializations, keywords } = careerSettings.value;
+    const { specializations } = careerSettings.value;
 
     for (const specialization of specializations) {
-      const fetchedVacancies = await this.vacancyFetcher.getVacancies(specialization.name);
+      if (!specialization.name || !specialization.resumes?.length) {
+        continue;
+      }
+
+      const fetchedVacancies = await this.vacancyFetcher.getVacancies(specialization);
 
       if (!fetchedVacancies.length) {
         throw new AppException(AppErrorName.VACANCY_APPLICATIONS_FETCH_ERROR);
       }
 
-      const vacanciesMap = new Map(fetchedVacancies.map((vacancy) => [
-        vacancy.link,
-        { ...vacancy, description: truncateText(vacancy?.description || '') },
-      ]));
+      const botMessage = `Найдено ${fetchedVacancies.length} вакансий по специализации ${specialization.name}
+        ${fetchedVacancies.map((vacancy) => `- ${vacancy.title} (${vacancy.link})`).join('\n')}`;
 
-      const generatedApplications = await this.gptService.generateVacancyApplications(
-        [...vacanciesMap.values()],
-        specialization,
-        keywords?.join(',') || '',
+      console.log('Finded vacancies:', botMessage);
+
+      bot.sendMessage(
+        TG_CHAT_ID,
+        botMessage,
       );
-
-      console.dir(generatedApplications, { depth: null, colors: true });
-
-      const vacancyApplications = generatedApplications.flatMap((application) => {
-        const vacancyData = vacanciesMap.get(application.link);
-
-        if (!vacancyData) return [];
-
-        return [{
-          ...vacancyData,
-          ...application,
-          resumes: specialization.resumes,
-        }];
-      }) as VacancyApplication[];
-
-      try {
-        await VacancyApplicationModel.createApplications(vacancyApplications);
-      } catch (error) {
-        logger.error('VACANCY_APPLICATION_CREATE_IN_DB_ERROR', error);
-
-        continue;
-      }
     }
   }
 
-  private async applyToJob(vacancy: VacancyApplication): Promise<void> {
+  private async applyToJob(vacancy: Vacancy): Promise<void> {
     const { link, letter, resumes } = vacancy;
 
     const page: Page = await this.browser.getContext().newPage();
@@ -242,7 +225,7 @@ export class VacancyApplicationService {
   private static async fillForm(
     page: Page,
     resumes: string[],
-    vacancy: VacancyApplication,
+    vacancy: Vacancy,
   ) {
     const { inputs, options } = vacancy.form as FormsAnswers;
 

@@ -2,14 +2,14 @@ import { SpecializationSetting } from '../../models/settings/settings.types';
 
 import { Resume } from '../resume/resume.types';
 
-import { Reply, Vacancy } from '../vacancy/vacancy.types';
+import { FormQuestion, Reply, Vacancy } from '../vacancy/vacancy.types';
 
-export interface GeneratedVacancyApplication {
-  link: string,
-  form?: FormsAnswers;
-  resumes: string[],
-  letter: string
-}
+// export interface GeneratedVacancyApplication {
+//   link: string,
+//   form?: FormsAnswers;
+//   resumes: string[],
+//   letter: string
+// }
 
 export interface FormsAnswers {
   inputs: { id: string, value: string }[],
@@ -24,12 +24,10 @@ export interface CallGptDto {
 }
 
 export interface IGPTService {
-  generateVacancyApplications(
-    vacancies: Vacancy[],
-    specialization: SpecializationSetting,
-    keywords: string,
-  ): Promise<GeneratedVacancyApplication[]>;
+  callGPT<T>(dto: CallGptDto & { field: string }): Promise<T>;
+  callGPT(dto: CallGptDto & { field?: undefined }): Promise<string>;
+  generateLetter(vacancy: Vacancy): Promise<string>;
+  generateVacancyFormAnswers(form: FormQuestion[]): Promise<FormsAnswers>
   generateChatReply(message: string): Promise<Reply>;
-  // generateResumes(content: string): Promise<Resume[]>;
-  // analyzeInterviewPatterns(): Promise<string>;
+  generateResumeSelection(vacancyName: string, resumesList: string[]): Promise<string[]>,
 }

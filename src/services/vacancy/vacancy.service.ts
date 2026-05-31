@@ -20,6 +20,9 @@ import { BrowserService } from '../browser/browser.service';
 import { clickVacancyApplyButton } from '../../common/utils/vacancy';
 
 import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
+import { GPTService } from '../chatgpt/chatgpt.service';
+import { SpecializationSetting } from '../../models/settings/settings.types';
+import { format } from '../../common/utils/format';
 
 const { LIMIT_FETCH_VACANCIES } = process.env;
 
@@ -27,24 +30,26 @@ export class VacancyService implements IVacancyFetcher {
   constructor(
     private browserService: BrowserService,
     private redisService: RedisService,
+    private gptService: GPTService,
   ) {
   }
 
-  async getVacancies(job: string): Promise<Vacancy[]> {
+  async getVacancies(specialization: SpecializationSetting): Promise<Vacancy[]> {
     await this.browserService.start();
 
     const allVacancies: Vacancy[] = [];
 
     let pageNumber = 0;
-    let hasNextPage = true;
     let countVacancies = 0;
+
+    let hasNextPage = true;
 
     while (hasNextPage) {
       const page = await this.browserService.getContext().newPage();
 
       try {
         const params = new URLSearchParams({
-          text: job,
+          text: specialization.name,
           area: '113',
           page: pageNumber.toString(),
         });
@@ -73,19 +78,35 @@ export class VacancyService implements IVacancyFetcher {
 
           if (existingVacancy) continue;
 
-          if (LIMIT_FETCH_VACANCIES && countVacancies >= parseInt(LIMIT_FETCH_VACANCIES, 10)) {
+          const limit = specialization?.limitParsingVac ?? (LIMIT_FETCH_VACANCIES
+            ? parseInt(LIMIT_FETCH_VACANCIES, 10)
+            : null);
+
+          if (limit && countVacancies >= limit) {
             return allVacancies;
           }
 
           try {
-            const vacancy = await this.parseVacancyDetails(vacancyLink as string);
+            const vacancy = await this.parseVacancyDetails(vacancyLink as string, specialization);
 
-            allVacancies.push(vacancy);
-            countVacancies++;
+            if (vacancy) {
+              try {
+                await VacancyApplicationModel.createApplication(vacancy);
+              } catch (error) {
+                logger.error('VACANCY_APPLICATION_CREATE_IN_DB_ERROR', error);
+
+                continue;
+              }
+
+              allVacancies.push(vacancy);
+
+              countVacancies++;
+            }
 
             await sleep(PAGE_PARSING_DELAY);
           } catch (error) {
             logger.error(AppErrorName.VACANCY_PARSE_ERROR, error);
+
             continue;
           }
         }
@@ -105,6 +126,7 @@ export class VacancyService implements IVacancyFetcher {
 
     if (!allVacancies.length) {
       logger.warn(new Error(AppErrorName.JOB_APPLICATION_VACANCIES_EMPTY_ERROR));
+
       bot.sendMessage(TG_CHAT_ID, BotMessageName.VACANCY_PARSING_ERROR);
     }
 
@@ -113,7 +135,7 @@ export class VacancyService implements IVacancyFetcher {
     return allVacancies;
   }
 
-  public async parseVacancyDetails(url: string): Promise<Vacancy> {
+  public async parseVacancyDetails(url: string, specialization: SpecializationSetting): Promise<Vacancy | false> {
     const page = await this.browserService.getContext().newPage();
 
     try {
@@ -135,6 +157,17 @@ export class VacancyService implements IVacancyFetcher {
       const company = (await companyHandle?.textContent())?.trim() || '';
       const description = (await descriptionHandle?.textContent()) || '';
 
+      if (specialization.prompt) {
+        const isValidVacancy = await this.gptService.callGPT<boolean>({
+          prompt: format(specialization.prompt, { vacancyTitle: title }),
+          field: 'isValidVacancy',
+        });
+
+        console.log('isValidVacancy', isValidVacancy);
+
+        if (!isValidVacancy) return false;
+      }
+
       await clickVacancyApplyButton(page);
 
       console.log('vacancy-description', description);
@@ -144,21 +177,37 @@ export class VacancyService implements IVacancyFetcher {
       try {
         await page.waitForNavigation({ timeout: 90000 });
 
-        form = await VacancyService.parseForm(page);
+        const parsedForm = await VacancyService.parseForm(page);
+
+        console.log('parsedForm', parsedForm);
+
+        form = await this.gptService.generateVacancyFormAnswers(parsedForm);
       } catch {
         // intentionally empty
       }
 
-      console.log('page url before screenshot:', page.url());
-      console.log('page is closed:', page.isClosed());
-
-      return {
+      const vacancy: Vacancy = {
         link: finalUrl,
         title,
         company,
         description,
         ...(form && { form }),
+        resumes: [],
+        letter: '',
       };
+
+      vacancy.letter = await this.gptService.generateLetter(vacancy);
+
+      console.log('generated letter', vacancy.letter);
+
+      vacancy.resumes = await this.gptService.generateResumeSelection(vacancy.title, specialization.resumes);
+
+      console.log('generated resumes selection', vacancy.resumes);
+
+      console.log('page url before screenshot:', page.url());
+      console.log('page is closed:', page.isClosed());
+
+      return vacancy;
     } catch (error) {
       throw new AppException(AppErrorName.VACANCY_PARSE_ERROR, { cause: error });
     } finally {

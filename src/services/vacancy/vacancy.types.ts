@@ -1,13 +1,18 @@
+import { SpecializationSetting } from '../../models/settings/settings.types';
+import { FormsAnswers } from '../chatgpt/chatgpt.types';
+
 export interface Vacancy {
   link: string;
   title: string;
   company?: string;
   description?: string;
-  form?: FormQuestion[];
+  form?: FormsAnswers;
+  resumes: string[];
+  letter: string;
 }
 
 export interface IVacancyFetcher {
-  getVacancies(job: string): Promise<Vacancy[]>;
+  getVacancies(specialization: SpecializationSetting): Promise<Vacancy[]>;
 }
 
 export interface IVacancyChatService {

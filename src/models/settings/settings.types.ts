@@ -7,7 +7,13 @@ export interface Settings {
   value: SettingsValue;
 }
 
-export interface SpecializationSetting { id: number, name: string }
+export interface SpecializationSetting {
+  id: number,
+  name: string,
+  prompt: string,
+  resumes: string[],
+  limitParsingVac?: number,
+}
 
 export interface SettingsDocument extends Settings, Document {
   createdAt: Date;

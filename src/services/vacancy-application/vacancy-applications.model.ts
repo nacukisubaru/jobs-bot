@@ -2,10 +2,11 @@ import { Schema, model } from 'mongoose';
 import Joi from 'joi';
 
 import {
-  IVacancyApplicationModel, VacancyApplication, VacancyApplicationDocument, VacancyApplicationStatus,
+  IVacancyApplicationModel, VacancyApplicationDocument, VacancyApplicationStatus,
 } from './vacancy-applications.types';
 
 import { AUTO_REPLY_INTERVAL_HOURS } from '../../common/constants/common';
+import { Vacancy } from '../vacancy/vacancy.types';
 
 const linkSchema = Joi.string()
   .uri()
@@ -59,7 +60,7 @@ const VacancyApplicationSchema = new Schema<VacancyApplicationDocument>({
 });
 
 VacancyApplicationSchema.statics.updateApplication = async function (
-  vacancyApplication: VacancyApplication,
+  vacancyApplication: Vacancy,
   appliedResume: string,
 ) {
   const { link, resumes } = vacancyApplication;
@@ -86,7 +87,7 @@ VacancyApplicationSchema.statics.updateApplication = async function (
 };
 
 VacancyApplicationSchema.statics.createApplications = async function (
-  vacancyApplications: VacancyApplication[],
+  vacancyApplications: Vacancy[],
 ) {
   await this.insertMany(
     vacancyApplications.map((vacancyApplication) => ({
@@ -102,7 +103,22 @@ VacancyApplicationSchema.statics.createApplications = async function (
   );
 };
 
-VacancyApplicationSchema.statics.getActualVacancyApplications = async function (): Promise<VacancyApplication[]> {
+VacancyApplicationSchema.statics.createApplication = async function (
+  vacancyApplication: Vacancy,
+) {
+  await this.create({
+    ...vacancyApplication,
+    isApplied: false,
+    appliedResumes: [],
+    status: VacancyApplicationStatus.PENDING,
+    type: 'vacancy',
+    isArchived: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+};
+
+VacancyApplicationSchema.statics.getActualVacancyApplications = async function (): Promise<Vacancy[]> {
   const vacancies = await this.find({
     resumes: { $exists: true, $not: { $size: 0 } },
     isArchived: false,
@@ -122,7 +138,7 @@ VacancyApplicationSchema.statics.getActualVacancyApplications = async function (
   return vacancies;
 };
 
-VacancyApplicationSchema.statics.getVacancyApplications = async function (): Promise<VacancyApplication[]> {
+VacancyApplicationSchema.statics.getVacancyApplications = async function (): Promise<Vacancy[]> {
   const vacancyApplications = await this.find({
     resumes: { $exists: true, $not: { $size: 0 } },
     isApplied: false,

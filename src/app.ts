@@ -22,7 +22,7 @@ async function bootstrap() {
   console.log('Application started');
 
   const startJobsBot = async () => {
-    await appContainer.scheduler.start();
+    await appContainer.scheduler.start(true);
   };
 
   startJobsBot();
