@@ -74,10 +74,6 @@ export class VacancyService implements IVacancyFetcher {
         }
 
         for (const vacancyLink of vacanciesLinks) {
-          const existingVacancy = await VacancyApplicationModel.findOne({ link: vacancyLink });
-
-          if (existingVacancy) continue;
-
           const limit = specialization?.limitParsingVac ?? (LIMIT_FETCH_VACANCIES
             ? parseInt(LIMIT_FETCH_VACANCIES, 10)
             : null);
@@ -91,16 +87,20 @@ export class VacancyService implements IVacancyFetcher {
 
             if (vacancy) {
               try {
+                const existingVacancy = await VacancyApplicationModel.findOne({ link: vacancy.link });
+
+                if (existingVacancy) continue;
+
                 await VacancyApplicationModel.createApplication(vacancy);
               } catch (error) {
                 logger.error('VACANCY_APPLICATION_CREATE_IN_DB_ERROR', error);
 
                 continue;
+              } finally {
+                allVacancies.push(vacancy);
+
+                countVacancies++;
               }
-
-              allVacancies.push(vacancy);
-
-              countVacancies++;
             }
 
             await sleep(PAGE_PARSING_DELAY);
