@@ -34,36 +34,36 @@ export class AppContainer {
     this.resumeBooster = new ResumeBoostScheduler(this.browser);
 
     this.scheduler = new BullScheduler([
-      // {
-      //   name: 'checkAuth',
-      //   task: () => this.browser.checkAuth(),
-      //   cronExpression: CRON.CHECK_AUTH,
-      //   priority: 1,
-      // },
-      // {
-      //   name: 'chatting',
-      //   task: () => this.vacancyChatService.processChats(),
-      //   cronExpression: CRON.CHATTING,
-      //   priority: 2,
-      // },
+      {
+        name: 'checkAuth',
+        task: () => this.browser.checkAuth(),
+        cronExpression: CRON.CHECK_AUTH,
+        priority: 1,
+      },
+      {
+        name: 'chatting',
+        task: () => this.vacancyChatService.processChats(),
+        cronExpression: CRON.CHATTING,
+        priority: 2,
+      },
       {
         name: 'prepareVacancies',
         task: () => this.vacancyApplicationService.prepareVacancyApplications(),
         cronExpression: CRON.PREPARE_VACANCIES,
         priority: 5,
       },
-      // {
-      //   name: 'vacanciesReplies',
-      //   task: () => this.vacancyApplicationService.processNewVacancies(),
-      //   cronExpression: CRON.VACANCIES_REPLIES,
-      //   priority: 3,
-      // },
-      // {
-      //   name: 'savedVacancies',
-      //   task: () => this.vacancyApplicationService.processSavedVacancies(),
-      //   cronExpression: CRON.SAVED_VACANCIES,
-      //   priority: 4,
-      // },
+      {
+        name: 'vacanciesReplies',
+        task: () => this.vacancyApplicationService.processNewVacancies(),
+        cronExpression: CRON.VACANCIES_REPLIES,
+        priority: 3,
+      },
+      {
+        name: 'savedVacancies',
+        task: () => this.vacancyApplicationService.processSavedVacancies(),
+        cronExpression: CRON.SAVED_VACANCIES,
+        priority: 4,
+      },
     ]);
 
     const initBooster = async () => {

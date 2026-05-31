@@ -1,4 +1,4 @@
-import 'dotenv/config'; // ← первая строка файла
+import 'dotenv/config';
 
 import mongoose from 'mongoose';
 
@@ -22,7 +22,7 @@ async function bootstrap() {
   console.log('Application started');
 
   const startJobsBot = async () => {
-    await appContainer.scheduler.start(true);
+    await appContainer.scheduler.start();
   };
 
   startJobsBot();

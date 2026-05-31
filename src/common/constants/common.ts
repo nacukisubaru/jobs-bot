@@ -16,7 +16,7 @@ export const CRON = {
   CHATTING: '*/10 8-23 * * *', // каждые 10 минут с 08:00 до 23:00
   VACANCIES_REPLIES: '20 8-23 * * *', // каждый час в :20, с 08:00 до 23:00
   SAVED_VACANCIES: '40 8-23 * * *', // каждый час в :40, с 08:00 до 23:00
-  PREPARE_VACANCIES: '0 0-7 * * *', // в 01:00, 03:00, 05:00, 07:00
+  PREPARE_VACANCIES: '0 0-7,18-23 * * *', // в 01:00, 03:00, 05:00, 07:00
 } as const;
 
 export const AUTO_REPLIES_DELAY = process.env.AUTO_REPLIES_DELAY
