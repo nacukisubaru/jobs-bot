@@ -196,6 +196,8 @@ export class VacancyService implements IVacancyFetcher {
         letter: '',
       };
 
+      console.log('formm', form);
+
       vacancy.letter = await this.gptService.generateLetter(vacancy);
 
       console.log('generated letter', vacancy.letter);

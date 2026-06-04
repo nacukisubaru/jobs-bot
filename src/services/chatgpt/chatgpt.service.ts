@@ -89,7 +89,7 @@ export class GPTService implements IGPTService {
   async generateVacancyFormAnswers(form: FormQuestion[]): Promise<FormsAnswers> {
     const prompt = format(CHATGPT_ASK_FORM_QUESTION_PROMPT, { form: JSON.stringify(form) });
 
-    return this.callGPT({ prompt, field: 'answers' });
+    return this.callGPT({ prompt, field: 'form' });
   }
 
   async generateChatReply(message: string): Promise<Reply> {
