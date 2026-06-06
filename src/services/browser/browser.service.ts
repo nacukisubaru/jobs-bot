@@ -80,6 +80,8 @@ export class BrowserService {
           '--no-default-browser-check',
           '--mute-audio',
           '--hide-scrollbars',
+
+          '--disable-blink-features=AutomationControlled',
         ],
       });
 
@@ -87,6 +89,8 @@ export class BrowserService {
         storageState: 'hh-state.json',
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         viewport: { width: 1125, height: 900 },
+        locale: 'ru-RU',
+        timezoneId: 'Europe/Moscow',
       });
 
       await this.context.route('**/*', (route) => {

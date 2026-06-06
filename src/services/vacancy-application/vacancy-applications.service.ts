@@ -16,12 +16,11 @@ import { AppException } from '../../common/exceptions';
 
 import { VacancyApplicationModel } from './vacancy-applications.model';
 
-import { SettingsModel } from '../../models/settings/settings.model';
-
 import { BrowserService } from '../browser/browser.service';
 
 import { clickVacancyApplyButton } from '../../common/utils/vacancy';
 import { bot } from '../../bot/bot';
+import { SpecializationSetting } from '../../models/settings/settings.types';
 
 export class VacancyApplicationService {
   constructor(
@@ -56,32 +55,22 @@ export class VacancyApplicationService {
     await this.browser.stop();
   }
 
-  public async prepareVacancyApplications(): Promise<void> {
-    const careerSettings = await SettingsModel.getByKey('career-preferences');
+  public async prepareVacancyApplications(specialization: SpecializationSetting): Promise<void> {
+    const fetchedVacancies = await this.vacancyFetcher.getVacancies(specialization);
 
-    const { specializations } = careerSettings.value;
+    if (!fetchedVacancies.length) {
+      throw new AppException(AppErrorName.VACANCY_APPLICATIONS_FETCH_ERROR);
+    }
 
-    for (const specialization of specializations) {
-      if (!specialization.name || !specialization.resumes?.length) {
-        continue;
-      }
-
-      const fetchedVacancies = await this.vacancyFetcher.getVacancies(specialization);
-
-      if (!fetchedVacancies.length) {
-        throw new AppException(AppErrorName.VACANCY_APPLICATIONS_FETCH_ERROR);
-      }
-
-      const botMessage = `Найдено ${fetchedVacancies.length} вакансий по специализации ${specialization.name}
+    const botMessage = `Найдено ${fetchedVacancies.length} вакансий по специализации ${specialization.name}
         ${fetchedVacancies.map((vacancy) => `- ${vacancy.title} (${vacancy.link})`).join('\n')}`;
 
-      console.log('Finded vacancies:', botMessage);
+    console.log('Finded vacancies:', botMessage);
 
-      bot.sendMessage(
-        TG_CHAT_ID,
-        botMessage,
-      );
-    }
+    bot.sendMessage(
+      TG_CHAT_ID,
+      botMessage,
+    );
   }
 
   private async applyToJob(vacancy: Vacancy): Promise<void> {

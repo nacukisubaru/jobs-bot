@@ -13,6 +13,7 @@ export interface SpecializationSetting {
   prompt: string,
   resumes: string[],
   limitParsingVac?: number,
+  cronTime?: string,
 }
 
 export interface SettingsDocument extends Settings, Document {

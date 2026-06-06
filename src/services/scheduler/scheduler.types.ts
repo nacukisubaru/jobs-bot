@@ -9,6 +9,7 @@ export interface TaskDefinition {
 
 export interface AddTaskArgs {
   name: string,
+  task: () => Promise<void>,
   cronExpression: string,
   attempts?: number,
   retryDelay?: number,

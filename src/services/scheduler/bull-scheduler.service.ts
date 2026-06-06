@@ -21,10 +21,6 @@ export class BullScheduler {
   constructor(private taskDefinitions: TaskDefinition[]) {
     this.queue = new Queue('scheduler', { connection });
 
-    taskDefinitions.forEach(({ name, task }) => {
-      this.tasks.set(name, task);
-    });
-
     this.worker = new Worker('scheduler', async (job: Job) => {
       const task = this.tasks.get(job.name);
 
@@ -54,20 +50,33 @@ export class BullScheduler {
     });
   }
 
+  static async create(taskDefinitions: TaskDefinition[]): Promise<BullScheduler> {
+    const queue = new Queue('scheduler', { connection });
+
+    await queue.obliterate({ force: true });
+    await queue.close();
+
+    return new BullScheduler(taskDefinitions);
+  }
+
   isRunning(): boolean {
     return this.running;
   }
 
   addTask({
-    name, cronExpression, attempts, retryDelay, priority,
+    name, task, cronExpression, attempts, retryDelay, priority,
   }: AddTaskArgs) {
-    return this.queue.add(name, {}, {
+    this.tasks.set(name, task);
+
+    this.queue.add(name, {}, {
       repeat: { pattern: cronExpression },
       attempts,
       removeOnComplete: true,
       ...(retryDelay && { backoff: { type: 'fixed', delay: retryDelay } }),
       priority,
     });
+
+    logger.info(`[BullMQ] Registered task: ${name}`);
   }
 
   async scheduleByTimes(times: string[], taskName: string, task: () => Promise<void>): Promise<void> {
@@ -82,10 +91,9 @@ export class BullScheduler {
     for (const time of times) {
       const name = `${taskName}_${time}`;
 
-      this.tasks.set(name, task);
-
       this.addTask({
         name,
+        task,
         cronExpression: timeToCron(time),
       });
 
@@ -101,16 +109,16 @@ export class BullScheduler {
     }
 
     const repeatableJobs = await this.queue.getJobSchedulers();
+
     const existingNames = repeatableJobs.map((j) => j.name);
 
     for (const {
-      name, cronExpression, attempts = 3, retryDelay = 5000, priority = 1,
+      name, task, cronExpression, attempts = 3, retryDelay = 5000, priority = 1,
     } of this.taskDefinitions) {
       if (!existingNames.includes(name)) {
         this.addTask({
-          name, cronExpression, attempts, retryDelay, priority,
+          name, task, cronExpression, attempts, retryDelay, priority,
         });
-        logger.info(`[BullMQ] Registered task: ${name}`);
       } else {
         logger.info(`[BullMQ] Task already exists: ${name}`);
       }
