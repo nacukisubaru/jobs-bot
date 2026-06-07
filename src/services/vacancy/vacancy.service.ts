@@ -101,22 +101,20 @@ export class VacancyService implements IVacancyFetcher {
           try {
             const vacancy = await this.parseVacancyDetails(vacancyLink as string, specialization);
 
-            if (vacancy) {
-              try {
-                const existingVacancy = await VacancyApplicationModel.findOne({ link: vacancy.link });
+            try {
+              const existingVacancy = await VacancyApplicationModel.findOne({ link: vacancy.link });
 
-                if (existingVacancy) continue;
+              if (existingVacancy) continue;
 
-                await VacancyApplicationModel.createApplication(vacancy);
-              } catch (error) {
-                logger.error('VACANCY_APPLICATION_CREATE_IN_DB_ERROR', error);
+              await VacancyApplicationModel.createApplication(vacancy);
+            } catch (error) {
+              logger.error('VACANCY_APPLICATION_CREATE_IN_DB_ERROR', error);
 
-                continue;
-              } finally {
-                allVacancies.push(vacancy);
+              continue;
+            } finally {
+              allVacancies.push(vacancy);
 
-                countVacancies++;
-              }
+              countVacancies++;
             }
 
             await sleep(PAGE_PARSING_DELAY);
@@ -151,7 +149,7 @@ export class VacancyService implements IVacancyFetcher {
     return allVacancies;
   }
 
-  public async parseVacancyDetails(url: string, specialization: SpecializationSetting): Promise<Vacancy | false> {
+  public async parseVacancyDetails(url: string, specialization: SpecializationSetting): Promise<Vacancy> {
     const page = await this.browserService.getContext().newPage();
 
     try {
