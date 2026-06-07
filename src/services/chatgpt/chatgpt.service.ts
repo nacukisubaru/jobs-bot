@@ -22,6 +22,7 @@ import { HttpStatus } from '../../common/constants/https-status';
 import { logger } from '../../common/logger';
 import { SettingsModel } from '../../models/settings/settings.model';
 import { format } from '../../common/utils/format';
+import { truncateText } from '../../common/utils/common';
 // import { PromptBuilder } from '../../common/utils/prompt-builder';
 
 export class GPTService implements IGPTService {
@@ -78,7 +79,7 @@ export class GPTService implements IGPTService {
     const vacText = `
       Название: ${vacancy.title} 
       Компания: ${vacancy.company || 'Не указано'}
-      Описание: ${vacancy.description}\n
+      Описание: ${truncateText(vacancy.description as string, 1000)}\n
     `;
 
     const { personInfo } = careerSettings.value;

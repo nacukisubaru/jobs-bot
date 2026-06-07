@@ -11,7 +11,7 @@ import {
   PAGE_PARSING_DELAY,
   TG_CHAT_ID,
 } from '../../common/constants/common';
-import { sleep, truncateText } from '../../common/utils/common';
+import { sleep } from '../../common/utils/common';
 import { AppException } from '../../common/exceptions';
 
 import { VacancyApplicationModel } from './vacancy-applications.model';

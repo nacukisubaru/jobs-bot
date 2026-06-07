@@ -82,6 +82,22 @@ export class VacancyService implements IVacancyFetcher {
             return allVacancies;
           }
 
+          const title = await page.$eval(
+            `[href="${vacancyLink}"]`,
+            (el) => el.textContent?.trim(),
+          );
+
+          if (specialization.prompt) {
+            const isValidVacancy = await this.gptService.callGPT<boolean>({
+              prompt: format(specialization.prompt, { vacancyTitle: title }),
+              field: 'isValidVacancy',
+            });
+
+            console.log('isValidVacancy', isValidVacancy, title);
+
+            if (!isValidVacancy) continue;
+          }
+
           try {
             const vacancy = await this.parseVacancyDetails(vacancyLink as string, specialization);
 
@@ -156,17 +172,6 @@ export class VacancyService implements IVacancyFetcher {
       const title = (await titleHandle?.textContent())?.trim() || '';
       const company = (await companyHandle?.textContent())?.trim() || '';
       const description = (await descriptionHandle?.textContent()) || '';
-
-      if (specialization.prompt) {
-        const isValidVacancy = await this.gptService.callGPT<boolean>({
-          prompt: format(specialization.prompt, { vacancyTitle: title }),
-          field: 'isValidVacancy',
-        });
-
-        console.log('isValidVacancy', isValidVacancy);
-
-        if (!isValidVacancy) return false;
-      }
 
       await clickVacancyApplyButton(page);
 

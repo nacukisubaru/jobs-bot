@@ -9,6 +9,7 @@ docker compose down
 
 docker compose up -d
 
+docker system prune -a --volumes -f
 
 docker compose build --no-cache && docker compose up -d
 
