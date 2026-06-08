@@ -1,5 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 
+import { addMinutes, format } from 'date-fns';
+
 import { bot } from '../bot';
 
 import { appContainer } from '../../app-container';
@@ -14,31 +16,37 @@ export async function parseVacancyCommand(msg: TelegramBot.Message) {
 
   if (!url?.includes('hh.ru/vacancy/')) return;
 
-  await bot.sendMessage(chatId, '🔄 Парсю вакансию...');
+  await bot.sendMessage(chatId, '🔄 Вакансия добавлена в очередь');
 
-  try {
-    const careerSettings = await SettingsModel.getByKey('career-preferences');
+  const parseVacancy = async () => {
+    try {
+      const careerSettings = await SettingsModel.getByKey('career-preferences');
 
-    const specializations = careerSettings?.value?.specializations ?? [];
-    const specialization = specializations[0];
+      const specializations = careerSettings?.value?.specializations ?? [];
+      const specialization = specializations[0];
 
-    await appContainer.browser.start();
+      await appContainer.browser.start();
 
-    const vacancy = await appContainer.vacancyService.parseVacancyDetails(url, specialization);
+      const vacancy = await appContainer.vacancyService.parseVacancyDetails(url, specialization);
 
-    const existing = await VacancyApplicationModel.findOne({ link: vacancy.link });
+      const existing = await VacancyApplicationModel.findOne({ link: vacancy.link });
 
-    if (existing) {
-      await bot.sendMessage(chatId, '⚠️ Вакансия уже есть в базе');
+      if (existing) {
+        await bot.sendMessage(chatId, '⚠️ Вакансия уже есть в базе');
 
-      return;
+        return;
+      }
+
+      await VacancyApplicationModel.createApplication(vacancy);
+      await bot.sendMessage(chatId, `✅ Добавлено: ${vacancy.title} — ${vacancy.company}`);
+    } catch (e) {
+      await bot.sendMessage(chatId, '❌ Ошибка парсинга');
+    } finally {
+      await appContainer.browser.stop();
     }
+  };
 
-    await VacancyApplicationModel.createApplication(vacancy);
-    await bot.sendMessage(chatId, `✅ Добавлено: ${vacancy.title} — ${vacancy.company}`);
-  } catch (e) {
-    await bot.sendMessage(chatId, '❌ Ошибка парсинга');
-  } finally {
-    await appContainer.browser.stop();
-  }
+  const time = format(addMinutes(new Date(), 5).toISOString(), 'HH:mm');
+
+  appContainer.scheduler.scheduleByTimes([time], 'parseVacancy', parseVacancy);
 }

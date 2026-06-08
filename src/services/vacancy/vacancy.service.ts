@@ -50,9 +50,11 @@ export class VacancyService implements IVacancyFetcher {
       try {
         const params = new URLSearchParams({
           text: specialization.name,
-          area: '113',
           page: pageNumber.toString(),
         });
+
+        const areas = specialization.locations ?? ['113'];
+        areas.forEach((area: string) => params.append('area', area));
 
         const searchUrl = `${HH_URL}/search/vacancy?${params.toString()}`;
 
@@ -60,7 +62,15 @@ export class VacancyService implements IVacancyFetcher {
 
         console.log('screen vacnacies is ready!');
 
-        await page.waitForSelector('[data-qa="serp-item__title"]');
+        const hasItems = await page
+          .waitForSelector('[data-qa="serp-item__title"]', { timeout: 5000 })
+          .catch(() => null);
+
+        if (!hasItems) {
+          hasNextPage = false;
+
+          break;
+        }
 
         const vacanciesLinks = await page.$$eval(
           '[data-qa="serp-item__title"]',
@@ -93,8 +103,6 @@ export class VacancyService implements IVacancyFetcher {
               field: 'isValidVacancy',
             });
 
-            console.log('isValidVacancy', isValidVacancy, title);
-
             if (!isValidVacancy) continue;
           }
 
@@ -125,9 +133,6 @@ export class VacancyService implements IVacancyFetcher {
           }
         }
 
-        const nextButton = await page.$('[data-qa="pager-next"]');
-
-        hasNextPage = !!nextButton;
         pageNumber++;
 
         await sleep(PAGE_PARSING_DELAY);
@@ -141,7 +146,7 @@ export class VacancyService implements IVacancyFetcher {
     if (!allVacancies.length) {
       logger.warn(new Error(AppErrorName.JOB_APPLICATION_VACANCIES_EMPTY_ERROR));
 
-      bot.sendMessage(TG_CHAT_ID, BotMessageName.VACANCY_PARSING_ERROR);
+      bot.sendMessage(TG_CHAT_ID, `${BotMessageName.VACANCY_PARSING_ERROR} cпециализация: ${specialization.name}`);
     }
 
     await this.browserService.stop();

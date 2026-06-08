@@ -14,6 +14,7 @@ export interface SpecializationSetting {
   resumes: string[],
   limitParsingVac?: number,
   cronTime?: string,
+  locations?: string[],
 }
 
 export interface SettingsDocument extends Settings, Document {
