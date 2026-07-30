@@ -4,12 +4,12 @@ import { Page } from 'playwright';
 import {
   FormsAnswers,
   // GeneratedVacancyApplication
-} from '../chatgpt/chatgpt.types';
+} from '../ai/providers/ai-provider.types';
 
 import { Vacancy } from '../vacancy/vacancy.types';
 
 // export type VacancyApplication = Omit<Vacancy, 'form'>;
-//& GeneratedVacancyApplication;
+// & GeneratedVacancyApplication;
 
 export const enum VacancyApplicationStatus {
   REJECTION = 'rejection',

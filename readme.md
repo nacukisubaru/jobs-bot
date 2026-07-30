@@ -7,6 +7,8 @@ docker compose up --build -d
 docker compose logs -f app
 docker compose down
 
+caffeinate -dims npm run app
+
 docker compose up -d
 
 docker system prune -a --volumes -f

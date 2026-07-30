@@ -59,6 +59,12 @@ export class BullScheduler {
     return new BullScheduler(taskDefinitions);
   }
 
+  // todo
+  // /app/src/bot/commands/start-command.ts:12
+  // app-1  |   if (appContainer.scheduler.isRunning()) {
+  // app-1  |                              ^
+  // app-1  |
+  // app-1  | TypeError: Cannot read properties of null (reading 'isRunning')
   isRunning(): boolean {
     return this.running;
   }

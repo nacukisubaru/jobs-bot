@@ -3,7 +3,7 @@ import { Page } from 'playwright';
 import { Experience, IResumeService, Resume } from './resume.types';
 import { ResumeModel } from './resume.model';
 
-import { GPTService } from '../chatgpt/chatgpt.service';
+import { AIService } from '../ai/ai.service';
 
 import { CheckboxToggler } from '../../common/utils/checkbox-toggler';
 import { AppErrorName } from '../../common/constants/errors';
@@ -18,7 +18,7 @@ import { sleep } from '../../common/utils/common';
 export class ResumeService implements IResumeService {
   constructor(
     private browserService: BrowserService,
-    private gptService: GPTService,
+    private aiService: AIService,
   ) {}
 
   async createResumes(): Promise<void> {
@@ -33,7 +33,7 @@ export class ResumeService implements IResumeService {
     await this.deleteAllResumes();
 
     while (bundlesCount !== countGeneratedResumesIterations) {
-      const resumes = await this.gptService.generateResumes();
+      const resumes = await this.aiService.generateResumes();
 
       generatedResumes.push(...resumes);
 

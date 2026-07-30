@@ -20,7 +20,7 @@ import { BrowserService } from '../browser/browser.service';
 import { clickVacancyApplyButton } from '../../common/utils/vacancy';
 
 import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
-import { GPTService } from '../chatgpt/chatgpt.service';
+import { AIService } from '../ai/ai.service';
 import { SpecializationSetting } from '../../models/settings/settings.types';
 import { format } from '../../common/utils/format';
 
@@ -30,7 +30,7 @@ export class VacancyService implements IVacancyFetcher {
   constructor(
     private browserService: BrowserService,
     private redisService: RedisService,
-    private gptService: GPTService,
+    private aiService: AIService,
   ) {
   }
 
@@ -98,7 +98,7 @@ export class VacancyService implements IVacancyFetcher {
           );
 
           if (specialization.prompt) {
-            const isValidVacancy = await this.gptService.callGPT<boolean>({
+            const isValidVacancy = await this.aiService.call<boolean>({
               prompt: format(specialization.prompt, { vacancyTitle: title }),
               field: 'isValidVacancy',
             });
@@ -189,7 +189,7 @@ export class VacancyService implements IVacancyFetcher {
 
         console.log('parsedForm', parsedForm);
 
-        form = await this.gptService.generateVacancyFormAnswers(parsedForm);
+        form = await this.aiService.generateVacancyFormAnswers(parsedForm);
       } catch {
         // intentionally empty
       }
@@ -206,11 +206,11 @@ export class VacancyService implements IVacancyFetcher {
 
       console.log('formm', form);
 
-      vacancy.letter = await this.gptService.generateLetter(vacancy);
+      vacancy.letter = await this.aiService.generateLetter(vacancy);
 
       console.log('generated letter', vacancy.letter);
 
-      vacancy.resumes = await this.gptService.generateResumeSelection(vacancy.title, specialization.resumes);
+      vacancy.resumes = await this.aiService.generateResumeSelection(vacancy.title, specialization.resumes);
 
       console.log('generated resumes selection', vacancy.resumes);
 

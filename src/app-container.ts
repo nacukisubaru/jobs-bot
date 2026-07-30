@@ -1,6 +1,6 @@
 import { CRON } from './common/constants/common';
 import { BrowserService } from './services/browser/browser.service';
-import { GPTService } from './services/chatgpt/chatgpt.service';
+import { AIService } from './services/ai/ai.service';
 import { RedisService } from './services/redis/redis.service';
 import { ResumeBoostScheduler } from './services/resume/resume-boost.scheduler';
 import { BullScheduler } from './services/scheduler/bull-scheduler.service';
@@ -14,7 +14,7 @@ import { SpecializationSetting } from './models/settings/settings.types';
 export class AppContainer {
   readonly browser: BrowserService;
 
-  readonly gptService: GPTService;
+  readonly aiService: AIService;
 
   readonly vacancyService: VacancyService;
 
@@ -30,10 +30,10 @@ export class AppContainer {
     const redisService = new RedisService();
 
     this.browser = new BrowserService();
-    this.gptService = new GPTService();
-    this.vacancyService = new VacancyService(this.browser, redisService, this.gptService);
-    this.vacancyApplicationService = new VacancyApplicationService(this.browser, this.vacancyService, this.gptService);
-    this.vacancyChatService = new VacancyChatService(this.browser, this.gptService);
+    this.aiService = new AIService();
+    this.vacancyService = new VacancyService(this.browser, redisService, this.aiService);
+    this.vacancyApplicationService = new VacancyApplicationService(this.browser, this.vacancyService, this.aiService);
+    this.vacancyChatService = new VacancyChatService(this.browser, this.aiService);
     this.resumeBooster = new ResumeBoostScheduler(this.browser);
   }
 

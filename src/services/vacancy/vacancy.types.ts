@@ -1,5 +1,5 @@
 import { SpecializationSetting } from '../../models/settings/settings.types';
-import { FormsAnswers } from '../chatgpt/chatgpt.types';
+import { FormsAnswers } from '../ai/providers/ai-provider.types';
 
 export interface Vacancy {
   link: string;

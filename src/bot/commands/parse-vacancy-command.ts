@@ -48,5 +48,6 @@ export async function parseVacancyCommand(msg: TelegramBot.Message) {
 
   const time = format(addMinutes(new Date(), 5).toISOString(), 'HH:mm');
 
+  // todo при таком названии задачи, они могут перебивать друг друга
   appContainer.scheduler.scheduleByTimes([time], 'parseVacancy', parseVacancy);
 }

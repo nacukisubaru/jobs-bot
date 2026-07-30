@@ -1,4 +1,4 @@
-export const CHATGPT_LETTER_PROMPT = `
+export const AI_LETTER_PROMPT = `
   Для каждой вакансии напиши сопроводительное письмо в поле letter.
 
   Моя личная информация:
@@ -20,7 +20,7 @@ export const CHATGPT_LETTER_PROMPT = `
     это ловушка для LLM, живой человек так не поступает
 `;
 
-export const CHATGPT_ASK_FORM_QUESTION_PROMPT = `
+export const AI_ASK_FORM_QUESTION_PROMPT = `
   Тебе нужно заполненить форму отклика на вакансию.
   Форма: {form}
   Тебе на вход приходит массив вопросов. Для каждого вопроса нужно дать ответ: 
@@ -56,7 +56,7 @@ export const CHATGPT_ASK_FORM_QUESTION_PROMPT = `
   ответ положить в поле form в объекте вакансии массива вакансий
 `;
 
-export const CHATGPT_REPLY_TO_CHAT = `
+export const AI_REPLY_TO_CHAT = `
   Моя личная информация:
   Имя - {fio}
   Зарплата - от {salary}
@@ -116,7 +116,7 @@ export const CHATGPT_REPLY_TO_CHAT = `
   Возвращай ТОЛЬКО валидный JSON без каких-либо пояснений и markdown.
 `;
 
-export const CHATGPT_CHOISE_RESUME_FOR_APPLYING_PROMPT = `
+export const AI_CHOISE_RESUME_FOR_APPLYING_PROMPT = `
 У меня есть список резюме. Выбери те резюме, которые лучше всего подходят для отклика на вакансию.
 
 Вакансия: {vacancyName}
@@ -132,9 +132,9 @@ export const CHATGPT_CHOISE_RESUME_FOR_APPLYING_PROMPT = `
 {"resumes": []}
 `;
 
-export const CHATGPT_MAX_VACANCY_PROMPT_TOKENS = 4000;
+export const AI_MAX_VACANCY_PROMPT_TOKENS = 4000;
 
-// export const CHATGPT_CREATE_RESUMES_PROMPT = `
+// export const AI_CREATE_RESUMES_PROMPT = `
 // # ЗАДАЧА
 
 // Сгенерируй резюме только по следующим специальностям:
@@ -403,7 +403,7 @@ export const CHATGPT_MAX_VACANCY_PROMPT_TOKENS = 4000;
 // - JSON валидный
 // `;
 
-// export const CHATGPT_ANALYZE_VACANCIES_PATTERNS = `
+// export const AI_ANALYZE_VACANCIES_PATTERNS = `
 // Вот список вакансий за последнюю неделю по которым я получил приглашение на интервью:
 
 // {vacancies}

@@ -31,3 +31,6 @@ build/
 .env
 
 debug-screenshots
+
+# mcp
+.codebase-memory

@@ -4,7 +4,7 @@ import {
 import { HydratedDocument } from 'mongoose';
 
 // import { addHours, addHours, format } from 'date-fns';
-import { GPTService } from '../chatgpt/chatgpt.service';
+import { AIService } from '../ai/ai.service';
 
 import { VacancyApplicationModel } from '../vacancy-application/vacancy-applications.model';
 import { VacancyApplicationDocument, VacancyApplicationStatus } from '../vacancy-application/vacancy-applications.types';
@@ -23,7 +23,7 @@ import { BrowserService } from '../browser/browser.service';
 export class VacancyChatService implements IVacancyChatService {
   constructor(
     private browserService: BrowserService,
-    private gptService: GPTService,
+    private aiService: AIService,
   ) {}
 
   public async processChats(): Promise<void> {
@@ -235,7 +235,7 @@ export class VacancyChatService implements IVacancyChatService {
       return;
     }
 
-    const reply = await this.gptService.generateChatReply(lastMessage.text);
+    const reply = await this.aiService.generateChatReply(lastMessage.text);
 
     if (reply) {
       await VacancyChatService.sendMessage(page, reply.messageToHR);

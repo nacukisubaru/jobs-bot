@@ -1,5 +1,5 @@
 import { Locator, Page } from 'playwright';
-import { FormsAnswers, IGPTService } from '../chatgpt/chatgpt.types';
+import { IAIProvider, FormsAnswers } from '../ai/providers/ai-provider.types';
 
 import { IVacancyFetcher, Vacancy } from '../vacancy/vacancy.types';
 
@@ -26,7 +26,7 @@ export class VacancyApplicationService {
   constructor(
     private browser: BrowserService,
     private vacancyFetcher: IVacancyFetcher,
-    private gptService: IGPTService,
+    private aiService: IAIProvider,
   ) {}
 
   public async processNewVacancies(): Promise<void> {

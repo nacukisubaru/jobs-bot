@@ -1,0 +1,27 @@
+# Игнорировать конкретный файл с секретами
+.env
+.env.test
+config/secrets.json
+
+# Игнорировать папки с зависимостями и сборкой
+node_modules/
+dist/
+build/
+debug-screenshots/
+logs/
+.vscode/
+scripts/
+
+Dockerfile
+docker-compose.yml
+readme.md
+.dockerignore
+.gitignore
+
+
+# Игнорировать все файлы с определенным расширением во всем проекте
+*.log
+*.pdf
+
+# Игнорировать документацию внутри конкретной папки
+docs/**/*.md
