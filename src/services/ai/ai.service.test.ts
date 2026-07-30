@@ -87,4 +87,3 @@ describe('AIService', () => {
     expect(Array.isArray(resumes)).toBe(true);
   });
 });
-

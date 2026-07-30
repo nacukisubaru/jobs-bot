@@ -77,6 +77,12 @@ export class AppContainer {
           cronExpression: s.cronTime,
           priority: 5,
         })),
+      {
+        name: 'resumeBooster',
+        task: () => this.resumeBooster.init(),
+        cronExpression: timers.resumeBooster || '0 */4 * * *',
+        priority: 6,
+      },
     ]);
 
     await this.scheduler.start(runOnInit);
